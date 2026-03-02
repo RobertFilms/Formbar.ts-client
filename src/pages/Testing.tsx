@@ -89,8 +89,8 @@ const testFuncs = [
     { name: 'Get Manager', func: getManager, hasArgs: false, category: 'Manager', method: 'GET', testedWorks: true },
 
     // Logs
-    { name: 'Get Logs', func: getLogs, hasArgs: false, category: 'Logs', method: 'GET' },
-    { name: 'Get Log File', func: getLogFile, hasArgs: true, category: 'Logs', method: 'GET' },
+    { name: 'Get Logs', func: getLogs, hasArgs: false, category: 'Logs', method: 'GET', testedWorks: true },
+    { name: 'Get Log File', func: getLogFile, hasArgs: true, category: 'Logs', method: 'GET', testedWorks: true },
 
     // OAuth
     { name: 'OAuth Authorize', func: oauthAuthorize, hasArgs: false, category: 'OAuth', method: 'GET' },

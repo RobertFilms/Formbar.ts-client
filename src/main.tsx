@@ -258,33 +258,7 @@ const AppContent = () => {
 					level: "info",
 				});
 				setUserData(data);
-				if (data.activeClass) {
-					try {
-						const joinResponse = await fetch(
-							`${formbarUrl}/api/v1/class/${data.activeClass}/join`,
-							{
-								method: "POST",
-								headers: {
-									Authorization: `${accessToken}`,
-								},
-							},
-						);
-						const joinPayload = await joinResponse.json();
-						Log({
-							message: "Re-joined active class after reconnect",
-							data: joinPayload,
-						});
-						socket?.emit("classUpdate", "");
-					} catch (joinErr) {
-						Log({
-							message: "Error rejoining class",
-							data: joinErr,
-							level: "error",
-						});
-					}
-				}
-				return;
-			}
+            }
 
 			const userDetailResponse = await fetch(
 				`${formbarUrl}/api/v1/user/${data.id}`,
@@ -306,31 +280,6 @@ const AppContent = () => {
 					level: "info",
 				});
 				setUserData(nextUserData);
-				if (verified !== 0 && data.activeClass) {
-					try {
-						const joinResponse = await fetch(
-							`${formbarUrl}/api/v1/class/${data.activeClass}/join`,
-							{
-								method: "POST",
-								headers: {
-									Authorization: `${accessToken}`,
-								},
-							},
-						);
-						const joinPayload = await joinResponse.json();
-						Log({
-							message: "Re-joined active class after reconnect",
-							data: joinPayload,
-						});
-						socket?.emit("classUpdate", "");
-					} catch (joinErr) {
-						Log({
-							message: "Error rejoining class",
-							data: joinErr,
-							level: "error",
-						});
-					}
-				}
 			} else {
 				setUserData(data);
 			}
@@ -521,8 +470,10 @@ const AppContent = () => {
 				message: "All auth attempts failed – clearing tokens and redirecting to login",
 				level: "warn",
 			});
-			localStorage.removeItem("refreshToken");
-			localStorage.removeItem("formbarLoginData");
+            if(import.meta.env.PROD) {
+                localStorage.removeItem("refreshToken");
+                localStorage.removeItem("formbarLoginData");
+            }
 			setIsConnected(true); // dismiss the loading screen
 			navigate("/login");
 		}

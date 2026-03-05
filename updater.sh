@@ -11,35 +11,38 @@ FULL=false
 FULL_DEV=false
 SYNC_DIR="/var/www/formbar"
 
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --no-fetch)
             NO_FETCH=true
+            shift
             ;;
         --no-install)
             NO_INSTALL=true
+            shift
             ;;
         --no-build)
             NO_BUILD=true
+            shift
             ;;
         --full)
             FULL=true
+            shift
             ;;
         --full-dev)
             FULL_DEV=true
+            shift
             ;;
         --sync-dir)
-            # Consume the next argument as the sync directory
-            shift
-            SYNC_DIR="$1"
+            SYNC_DIR="$2"
+            shift 2
             ;;
         *)
-            echo "Unknown argument: $arg"
+            echo "Unknown argument: $1"
             echo "Usage: ./updater.sh [--no-fetch] [--no-install] [--no-build] [--full] [--full-dev] [--sync-dir <path>]"
             exit 1
             ;;
     esac
-    shift
 done
 
 # Function must be defined before it's called

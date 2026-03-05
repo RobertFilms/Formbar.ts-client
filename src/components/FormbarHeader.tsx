@@ -18,6 +18,7 @@ export default function FormbarHeader() {
 	const { userData, setUserData } = useUserData();
 
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [leaveClassModalOpen, setLeaveClassModalOpen] = useState(false);
 
 	const headerStyles = {
 		...styles.formbarHeader,
@@ -43,10 +44,6 @@ export default function FormbarHeader() {
 			navigate("/classes");
 			return;
 		}
-		const confirmLeave = window.confirm(
-			"Are you sure you want to leave the current class?",
-		);
-		if (!confirmLeave) return;
 
 		fetch(`${formbarUrl}/api/v1/class/${userData?.activeClass}/leave`, {
 			method: "POST",
@@ -233,7 +230,7 @@ export default function FormbarHeader() {
 						</Tooltip>
 					)}
 
-				{userData && (
+				{userData && (<>
 					<Tooltip
                         mouseEnterDelay={0.5}
 						placement="bottomRight"
@@ -247,12 +244,17 @@ export default function FormbarHeader() {
 							color="blue"
 							size="large"
 							style={styles.headerButton}
-							onClick={leaveClass}
+							onClick={() => userData.activeClass ? setLeaveClassModalOpen(true) : navigate("/classes")}
 						>
 							<IonIcon icon={IonIcons.easel} size="large" />
 						</Button>
 					</Tooltip>
-				)}
+
+                    <Modal title="Leave Class" centered open={leaveClassModalOpen} onCancel={() => setLeaveClassModalOpen(false)} onOk={() => {setLeaveClassModalOpen(false); leaveClass()}} okText="Leave" cancelText="Cancel">
+                        Are you sure you want to leave your current class session?
+                    </Modal>
+
+				</>)}
 
 				{
                 

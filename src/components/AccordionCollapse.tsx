@@ -1,4 +1,4 @@
-import { Button, Flex, InputNumber, Select, Tooltip, notification } from "antd";
+import { Button, Flex, InputNumber, Modal, Select, Tooltip, notification } from "antd";
 import { Activity, useState, useEffect } from "react";
 import { textColorForBackground } from "../CustomStyleFunctions";
 import { PermissionLevels, type Student } from "../types";
@@ -258,6 +258,7 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 	const [awardDigipogs, setAwardDigipogs] = useState<number>(0);
 
 	const [api, contextHolder] = notification.useNotification();
+    const [modal, contextHolderModal] = Modal.useModal();
 
 	const showSuccessNotification = (message: string) => {
 		api["success"]({
@@ -530,9 +531,15 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 								color="red"
 								style={{ width: "120px" }}
                                 onClick={() => {
-                                    if (window.confirm("Are you sure you want to ban this user? This will prevent them from joining any of your classes until unbanned.")) {
-                                        socket.emit("classBanUser", studentData.email);
-                                    }
+                                    modal.warning({
+                                        title: "Ban User",
+                                        content: "Are you sure you want to ban this user?",
+                                        okText: "Ban",
+                                        centered: true,
+                                        onOk: () => {
+                                            socket.emit("classBanUser", studentData.email);
+                                        }
+                                    });
                                 }}
 							>
 								Ban User
@@ -550,6 +557,7 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 				},
 			]}
 		/>
+        {contextHolderModal}
         </>
 	);
 }

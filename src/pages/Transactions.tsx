@@ -1,5 +1,5 @@
 import FormbarHeader from "../components/FormbarHeader";
-import { Flex, Typography } from "antd";
+import { Flex, Pagination, Spin, Typography } from "antd";
 import Log from "../debugLogger";
 const { Title, Text } = Typography;
 
@@ -10,24 +10,35 @@ import { useEffect, useState } from "react";
 import { accessToken, formbarUrl } from "../socket";
 import { useParams } from "react-router-dom";
 
+const DEFAULT_PAGE_SIZE = 20;
+
 export default function Transactions() {
 	const { userData } = useUserData();
 	const { id } = useParams<{ id?: string }>();
 
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+	const [totalTransactions, setTotalTransactions] = useState(0);
 
 	useEffect(() => {
 		// Fetch transactions from API when userData is available
 		if (!userData) return;
 
+		const offset = (currentPage - 1) * pageSize;
+		const targetUserId = id ? id : String(userData.id);
+		const abortController = new AbortController();
+
 		fetch(
-			`${formbarUrl}/api/v1/user/${id ? id : userData?.id}/transactions`,
+			`${formbarUrl}/api/v1/user/${targetUserId}/transactions?limit=${pageSize}&offset=${offset}`,
 			{
 				method: "GET",
 				headers: {
 					Authorization: `${accessToken}`,
 				},
+				signal: abortController.signal,
 			},
 		)
 			.then((res) => res.json())
@@ -49,17 +60,36 @@ export default function Transactions() {
 					return;
 				}
 
-				setTransactions(data.transactions);
+				const transactionRows = Array.isArray(data?.transactions)
+					? data.transactions
+					: [];
+				const total =
+					typeof data?.pagination?.total === "number"
+						? data.pagination.total
+						: transactionRows.length;
+
+				setTransactions(transactionRows);
+				setTotalTransactions(total);
 				setError(null);
 			})
 			.catch((err) => {
+				if (err?.name === "AbortError") {
+					return;
+				}
+
 				Log({
 					message: "Error fetching transactions data",
 					data: err,
 					level: "error",
 				});
+				setError("Failed to fetch transactions.");
+			})
+			.finally(() => {
+				setIsLoading(false);
 			});
-	}, [userData, id]);
+
+		return () => abortController.abort();
+	}, [userData, id, currentPage, pageSize]);
 
 	return (
 		<>
@@ -83,16 +113,25 @@ export default function Transactions() {
 						overflowY: "auto",
 					}}
 				>
-					{transactions &&
+					{isLoading ? (
+						<Flex justify="center" style={{ marginTop: "20px" }}>
+							<Spin />
+						</Flex>
+					) : (
+						transactions &&
 						transactions.map((transaction, index) => (
 							<TransactionItem
 								key={index}
 								transaction={transaction}
 								userId={id ? Number(id) : userData?.id}
 							/>
-						))}
+						))
+					)}
 
-					{transactions && !error && transactions.length === 0 && (
+					{!isLoading &&
+						transactions &&
+						!error &&
+						transactions.length === 0 && (
 						<Text
 							style={{
 								textAlign: "center",
@@ -114,6 +153,23 @@ export default function Transactions() {
 						>
 							Error: {error}
 						</Text>
+					)}
+
+					{totalTransactions > 0 && (
+						<Flex justify="center" style={{ marginTop: "12px" }}>
+							<Pagination
+								current={currentPage}
+								pageSize={pageSize}
+								total={totalTransactions}
+								showSizeChanger
+								pageSizeOptions={[10, 20, 50, 100]}
+								onChange={(page, size) => {
+									setIsLoading(true);
+									setCurrentPage(page);
+									setPageSize(size);
+								}}
+							/>
+						</Flex>
 					)}
 				</Flex>
 			</Flex>

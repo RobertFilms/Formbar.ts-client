@@ -873,4 +873,3 @@ async function getUserPools() {
         console.log('Get User Pools:', data);
     } catch (err) { console.error('Error getting user pools:', err); }
 }
-

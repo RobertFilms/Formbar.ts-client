@@ -170,7 +170,7 @@ export default function PollsEditorMenu() {
                                     <Switch defaultChecked={pollProperties.blind} onChange={(e) => setPollProperties({...pollProperties, blind: e})} />
                                 </Flex>
 
-                                <Flex align="center" justify="space-between" style={{cursor:'not-allowed', opacity: 0.5}}>
+                                <Flex align="center" justify="space-between">
                                     Multiple Answer Poll
                                     <Switch defaultChecked={pollProperties.allowMultipleResponses} onChange={(e) => setPollProperties({...pollProperties, allowMultipleResponses: e})} />
                                 </Flex>

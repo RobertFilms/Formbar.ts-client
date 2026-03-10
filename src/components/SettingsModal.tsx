@@ -22,17 +22,17 @@ type MenuItem = Required<MenuProps>['items'][number] & {
 const items: MenuItem[] = [
     {
         key: "1",
-        icon: <IonIcon icon={IonIcons.accessibility} />,
-        deselectedicon: <IonIcon icon={IonIcons.accessibilityOutline} />,
-        selectedicon: <IonIcon icon={IonIcons.accessibility} />,
-        label: "Accessibility",
-    },
-    {
-        key: "2",
         icon: <IonIcon icon={IonIcons.colorPaletteOutline} />,
         deselectedicon: <IonIcon icon={IonIcons.colorPaletteOutline} />,
         selectedicon: <IonIcon icon={IonIcons.colorPalette} />,
         label: "Appearance",
+    },
+    {
+        key: "2",
+        icon: <IonIcon icon={IonIcons.accessibility} />,
+        deselectedicon: <IonIcon icon={IonIcons.accessibilityOutline} />,
+        selectedicon: <IonIcon icon={IonIcons.accessibility} />,
+        label: "Accessibility",
     },
 ];
 
@@ -93,16 +93,6 @@ export default function SettingsModal() {
                 {currentMenu === "1" && (
                     <Flex vertical gap={15}>
                         <Flex gap={10} align="center">
-                            <Switch checked={settings.disableAnimations} onChange={(checked) => {
-                                updateSettings({ disableAnimations: checked });
-                            }} />
-                            <Text>Disable Animations</Text>
-                        </Flex>
-                    </Flex>
-                )}
-                {currentMenu === "2" && (
-                    <Flex vertical gap={15}>
-                        <Flex gap={10} align="center">
                             <Switch
                                 checkedChildren={<IonIcon icon={IonIcons.moon} />}
                                 unCheckedChildren={<IonIcon icon={IonIcons.sunny} />}
@@ -110,6 +100,16 @@ export default function SettingsModal() {
                                 onChange={toggleTheme}
                             />
                             <Text>{isDark ? "Dark Mode" : "Light Mode"}</Text>
+                        </Flex>
+                    </Flex>
+                )}
+                {currentMenu === "2" && (
+                    <Flex vertical gap={15}>
+                        <Flex gap={10} align="center">
+                            <Switch checked={settings.disableAnimations} onChange={(checked) => {
+                                updateSettings({ disableAnimations: checked });
+                            }} />
+                            <Text>Disable Animations</Text>
                         </Flex>
                     </Flex>
                 )}

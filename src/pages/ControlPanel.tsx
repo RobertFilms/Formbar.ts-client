@@ -24,6 +24,8 @@ import Statistics from "../components/ControlPanel/StatisticsPage";
 import { isMobile } from "../main";
 import { useNavigate } from "react-router-dom";
 import TimerPage from "../components/ControlPanel/TimerPage";
+import FullCircularPoll from "../components/CircularPoll";
+import type { Poll } from "../types";
 
 const items = [
 	{
@@ -211,6 +213,13 @@ export default function ControlPanel() {
 					}}
 					vertical
 				>
+                    { 
+                        classData?.poll && (
+                            <FullCircularPoll poll={classData.poll} size={200}/>
+                        )
+                    }
+
+
 					<Activity mode={classActive ? "hidden" : "visible"}>
                         <Tooltip title={isMobileDevice ? "Start Class" : ""} mouseOverDelay={0.5} placement='right' color="green">
                             <Button

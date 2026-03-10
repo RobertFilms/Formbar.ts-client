@@ -105,7 +105,7 @@ export default function LoadingScreen({
 }
 
 function randomText() {
-	const texts = [
+	const splashTexts = [
 		"Printing Digipogs...",
 		"Building Classrooms...",
 		"Forming the Bar...",
@@ -113,12 +113,15 @@ function randomText() {
 		"Filling Pog Meters...",
 		"Releasing Half-Life 3...",
 		"I'm the Formboy!",
+		"I'm the Femboy!",
 		"Yo, Gurt!!",,
         "Steven, fix it!!",
-        "PR #85"
+        "PR #85",
+        "Robert was here... It's in your skin. It's in your blood. It's in your brain. It is part of you.",
+        "Wishlist Kogama on Steam!"
 	];
 
-	return texts[Math.floor(Math.random() * texts.length)];
+	return splashTexts[Math.floor(Math.random() * splashTexts.length)];
 }
 
 const hideLoadingStyle = {

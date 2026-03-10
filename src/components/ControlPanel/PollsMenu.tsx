@@ -218,7 +218,7 @@ export default function PollsMenu({
                                             <Switch defaultChecked={poll.blind} onChange={(checked) => setBlind(checked)} />
                                         </Flex>
 
-                                        <Flex align="center" justify="space-between" style={{cursor:'not-allowed', opacity: 0.5}}>
+                                        <Flex align="center" justify="space-between">
                                             Multiple Answer Poll
                                             <Switch defaultChecked={poll.allowMultipleResponses} onChange={(checked) => setAllowMultipleResponses(checked)} />
                                         </Flex>

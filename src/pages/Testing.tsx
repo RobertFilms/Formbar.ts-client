@@ -147,6 +147,11 @@ type CurrentLoginData = CurrentUserData & {
 	digipogs?: number;
 };
 
+type OperationRef = {
+	method: HttpMethod;
+	apiPath: string;
+};
+
 // A flat normalized-key → string[] map shared across the test run.
 // Responses are harvested into it so later requests can pick up live IDs.
 type ValuePool = Map<string, string[]>;
@@ -198,26 +203,49 @@ const SUPPORTED_REQUEST_CONTENT_TYPES = [
 
 const AUTO_TEST_PASSWORD = "Password123!";
 const AUTO_TEST_DISPLAY_NAME = "Auto Test User";
+const MANAGED_USER_POOL_KEY = "manageduserid";
+const MANAGED_USER_SETUP_OPERATION: OperationRef = {
+	method: "POST",
+	apiPath: "/auth/register",
+};
+const MANAGED_USER_TEARDOWN_OPERATION: OperationRef = {
+	method: "DELETE",
+	apiPath: "/user/{id}",
+};
+const MANAGED_USER_PATH_OPERATIONS: OperationRef[] = [
+	{ method: "PATCH", apiPath: "/user/{id}/ban" },
+	{ method: "GET", apiPath: "/user/{id}/ban" },
+	{ method: "PATCH", apiPath: "/user/{id}/unban" },
+	{ method: "GET", apiPath: "/user/{id}/unban" },
+	MANAGED_USER_TEARDOWN_OPERATION,
+];
+const MANAGED_USER_RECIPIENT_OPERATIONS: OperationRef[] = [
+	{ method: "POST", apiPath: "/digipogs/award" },
+	{ method: "POST", apiPath: "/digipogs/transfer" },
+];
 
 // Setup operations run first (in this order) before the main test suite.
-// They establish class state so class-scoped endpoints have real IDs to use.
+// They establish disposable user/class state so later endpoints have real IDs.
 // Matched by method + normalised apiPath against whatever the Swagger spec exposes.
-const SETUP_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
+const SETUP_API_PATHS: OperationRef[] = [
+	MANAGED_USER_SETUP_OPERATION,
 	{ method: "POST", apiPath: "/class/create" },
 	{ method: "POST", apiPath: "/class/{id}/join" },
 	{ method: "POST", apiPath: "/class/{id}/start" },
 ];
 
 // Teardown operations run last to clean up test state.
-const TEARDOWN_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
+const TEARDOWN_API_PATHS: OperationRef[] = [
 	{ method: "POST", apiPath: "/class/{id}/end" },
 	{ method: "DELETE", apiPath: "/room/{id}/leave" },
+	MANAGED_USER_TEARDOWN_OPERATION,
 ];
 
 // Pool keys to wipe when a setup operation fails, so downstream tests that
 // depend on those resources are skipped cleanly instead of running with a
 // stale or wrong ID.
 const SETUP_FAILURE_INVALIDATES: Partial<Record<string, string[]>> = {
+	"POST:/auth/register": [MANAGED_USER_POOL_KEY],
 	// If temp-class creation fails, do not let later setup/main requests fall
 	// back to a pre-seeded active class from /user/me.
 	"POST:/class/create": ["classid", "roomid"],
@@ -286,6 +314,43 @@ function singularize(word: string): string {
 
 function normalizeKey(key: string): string {
 	return key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function matchesOperationRef(
+	operation: Pick<SwaggerOperation, "apiPath" | "method">,
+	ref: OperationRef,
+): boolean {
+	return operation.apiPath === ref.apiPath && operation.method === ref.method;
+}
+
+function isManagedUserSetupOperation(apiPath: string, method: HttpMethod) {
+	return (
+		apiPath === MANAGED_USER_SETUP_OPERATION.apiPath &&
+		method === MANAGED_USER_SETUP_OPERATION.method
+	);
+}
+
+function isManagedUserTeardownOperation(apiPath: string, method: HttpMethod) {
+	return (
+		apiPath === MANAGED_USER_TEARDOWN_OPERATION.apiPath &&
+		method === MANAGED_USER_TEARDOWN_OPERATION.method
+	);
+}
+
+function needsManagedUserPathTarget(
+	operation: Pick<SwaggerOperation, "apiPath" | "method">,
+) {
+	return MANAGED_USER_PATH_OPERATIONS.some((ref) =>
+		matchesOperationRef(operation, ref),
+	);
+}
+
+function needsManagedUserRecipient(
+	operation: Pick<SwaggerOperation, "apiPath" | "method">,
+) {
+	return MANAGED_USER_RECIPIENT_OPERATIONS.some((ref) =>
+		matchesOperationRef(operation, ref),
+	);
 }
 
 // ─── Value Pool ───────────────────────────────────────────────────────────────
@@ -450,6 +515,51 @@ function findInPool(pool: ValuePool, names: string[]): string | undefined {
 		}
 	}
 	return undefined;
+}
+
+function getManagedUserId(pool: ValuePool): string | undefined {
+	return findInPool(pool, [MANAGED_USER_POOL_KEY]);
+}
+
+function getKnownPin(pool: ValuePool): string {
+	return findInPool(pool, ["pin", "oldpin"]) ?? "1234";
+}
+
+function buildManagedUserRegistrationBody() {
+	const uniqueSuffix = `${Date.now().toString(36)}${Math.random()
+		.toString(36)
+		.slice(2, 6)}`;
+
+	return {
+		email: `autotest+${uniqueSuffix}@example.com`,
+		password: AUTO_TEST_PASSWORD,
+		displayName: `AutoTest${uniqueSuffix}`.slice(0, 20),
+	};
+}
+
+function getManagedUserFromResponse(payload: unknown):
+	| {
+			id: string;
+			email?: string;
+			displayName?: string;
+	  }
+	| undefined {
+	const data = getResponseData<{
+		user?: {
+			id?: string | number;
+			email?: string;
+			displayName?: string;
+		};
+	}>(payload);
+	const user = data?.user;
+	if (!user || user.id == null) return undefined;
+
+	return {
+		id: String(user.id),
+		email: typeof user.email === "string" ? user.email : undefined,
+		displayName:
+			typeof user.displayName === "string" ? user.displayName : undefined,
+	};
 }
 
 // ─── Schema helpers ───────────────────────────────────────────────────────────
@@ -708,6 +818,9 @@ function getAutoRunBlocker(
 		"apiPath" | "method" | "security" | "parameters" | "requestContentType"
 	>,
 ): string | null {
+	if (operation.apiPath === "/user/{id}/delete" && operation.method === "GET")
+		return "Deprecated delete alias is excluded; managed teardown uses DELETE /user/{id} instead.";
+
 	if (
 		operation.method === "DELETE" &&
 		!isManagedTeardownOperation(operation.apiPath, operation.method)
@@ -915,6 +1028,10 @@ function resolveParameterValue(
 	// earlier responses (e.g. classId from POST /class/create) take priority
 	// over any static Swagger example value (e.g. example: 42 in the spec).
 	if (parameter.in === "path") {
+		if (name === "id" && needsManagedUserPathTarget(operation)) {
+			return getManagedUserId(context.valuePool) ?? null;
+		}
+
 		const norm = normalizeKey(name);
 		const isIdParam = norm === "id" || norm.endsWith("id");
 		const resourcePrefixed = operation.resourceNames.map(
@@ -969,6 +1086,40 @@ function resolveParameterValue(
 	return stringifyParameterValue(synthesized);
 }
 
+function buildSpecialRequestBodyValue(
+	operation: SwaggerOperation,
+	context: TestingContext,
+): unknown {
+	if (isManagedUserSetupOperation(operation.apiPath, operation.method)) {
+		return buildManagedUserRegistrationBody();
+	}
+
+	const managedUserId = getManagedUserId(context.valuePool);
+	if (!managedUserId) return undefined;
+
+	if (operation.apiPath === "/digipogs/award" && operation.method === "POST") {
+		return {
+			to: managedUserId,
+			amount: 1,
+			reason: "Automated test payload",
+		};
+	}
+
+	if (
+		operation.apiPath === "/digipogs/transfer" &&
+		operation.method === "POST"
+	) {
+		return {
+			to: managedUserId,
+			amount: 1,
+			pin: getKnownPin(context.valuePool),
+			reason: "Automated test payload",
+		};
+	}
+
+	return undefined;
+}
+
 function buildRequestBody(
 	operation: SwaggerOperation,
 	spec: SwaggerSpec,
@@ -992,12 +1143,14 @@ function buildRequestBody(
 			reason: `Missing content for "${operation.requestContentType}".`,
 		};
 
-	const requestValue = getMediaTypeExample(mediaType, spec, {
-		propertyName: singularize(operation.category),
-		resourceNames: operation.resourceNames,
-		valuePool: context.valuePool,
-		currentUser: context.me,
-	});
+	const requestValue =
+		buildSpecialRequestBodyValue(operation, context) ??
+		getMediaTypeExample(mediaType, spec, {
+			propertyName: singularize(operation.category),
+			resourceNames: operation.resourceNames,
+			valuePool: context.valuePool,
+			currentUser: context.me,
+		});
 
 	if (requestValue === undefined) {
 		return operation.requestBody.required
@@ -1103,6 +1256,13 @@ function prepareRequest(
 
 // ─── API call ─────────────────────────────────────────────────────────────────
 
+function serializeFormValue(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (typeof value === "number" || typeof value === "boolean")
+		return String(value);
+	return JSON.stringify(value);
+}
+
 async function callApi(
 	path: string,
 	method: HttpMethod,
@@ -1130,18 +1290,10 @@ async function callApi(
 					if (Array.isArray(v)) {
 						for (const item of v) {
 							if (item != null)
-								params.append(
-									k,
-									typeof item === "string"
-										? item
-										: JSON.stringify(item),
-								);
+								params.append(k, serializeFormValue(item));
 						}
 					} else {
-						params.set(
-							k,
-							typeof v === "string" ? v : JSON.stringify(v),
-						);
+						params.set(k, serializeFormValue(v));
 					}
 				}
 			}
@@ -1194,9 +1346,9 @@ async function callApi(
 
 // ─── Feature-disabled detection ─────────────────────────────────────────────
 // Some endpoints are gated behind optional server features (Google OAuth,
-// email, etc.).  When the feature is not configured the server returns a 403
-// with a descriptive message.  These should be reported as "skipped", not
-// "failed", because the endpoint itself is working correctly.
+// email, etc.).  When the feature is not configured the server returns a
+// descriptive 403/503/501-style response.  These should be reported as
+// "skipped", not "failed", because the endpoint itself is working correctly.
 
 const FEATURE_DISABLED_PATTERNS: RegExp[] = [
 	/not enabled on this server/i,
@@ -1206,12 +1358,39 @@ const FEATURE_DISABLED_PATTERNS: RegExp[] = [
 ];
 
 function getFeatureDisabledReason(response: ApiResponse): string | null {
-	if (response.status !== 403 && response.status !== 501) return null;
+	if (
+		response.status !== 403 &&
+		response.status !== 501 &&
+		response.status !== 503
+	)
+		return null;
 	const text = summarizePayload(response.body);
 	for (const pattern of FEATURE_DISABLED_PATTERNS) {
 		if (pattern.test(text)) return `Feature not available: ${text}`;
 	}
 	return null;
+}
+
+function getOperationResponseDetails(
+	operation: SwaggerOperation,
+	response: ApiResponse,
+	skipReason: string | null,
+): string {
+	if (skipReason) return skipReason;
+
+	if (isManagedUserSetupOperation(operation.apiPath, operation.method)) {
+		const managedUser = getManagedUserFromResponse(response.body);
+		if (managedUser) {
+			return `Registered disposable user ${managedUser.displayName ?? managedUser.email ?? `#${managedUser.id}`}.`;
+		}
+		if (response.ok) return "Registered disposable user.";
+	}
+
+	if (isManagedUserTeardownOperation(operation.apiPath, operation.method)) {
+		if (response.ok) return "Deleted disposable user.";
+	}
+
+	return summarizePayload(response.body);
 }
 
 function isClassScopedOperation(operation: SwaggerOperation): boolean {
@@ -1226,11 +1405,33 @@ function getRuntimeOperationBlocker(
 	context: TestingContext,
 ): string | null {
 	const canCreateTemporaryClass = (context.me.permissions ?? 0) >= 4;
+	const canManageDisposableUser = (context.me.permissions ?? 0) >= 5;
 	const hasClassContext = Boolean(
 		findInPool(context.valuePool, ["classid", "roomid"]),
 	);
+	const hasManagedUser = Boolean(getManagedUserId(context.valuePool));
 	const classContextUnavailableReason =
 		"No active class is available. Creating a temporary class requires global Teacher permissions.";
+
+	if (isManagedUserSetupOperation(operation.apiPath, operation.method)) {
+		return canManageDisposableUser
+			? null
+			: "Secondary-user setup requires global Manager permissions so the suite can clean up the disposable account afterward.";
+	}
+
+	if (isManagedUserTeardownOperation(operation.apiPath, operation.method)) {
+		return hasManagedUser ? null : "No disposable user was created for teardown.";
+	}
+
+	if (
+		(needsManagedUserPathTarget(operation) ||
+			needsManagedUserRecipient(operation)) &&
+		!hasManagedUser
+	) {
+		return canManageDisposableUser
+			? "No disposable user is available for secondary-user endpoint tests."
+			: "Secondary-user endpoint tests are skipped unless the suite can create and clean up a disposable user with global Manager permissions.";
+	}
 
 	if (operation.apiPath === "/class/create" && operation.method === "POST") {
 		return canCreateTemporaryClass
@@ -1420,14 +1621,27 @@ export function Testing() {
 
 			// Run all operations in phase order (setup → main → teardown).
 			// Because operations are already sorted, iterating them in order
-			// guarantees class/create and class/{id}/start finish before any
-			// class-scoped test tries to use classId.
+			// guarantees disposable setup resources exist before dependent
+			// endpoints try to use them.
 			for (const operation of runnableOperations) {
 				if (
 					operation.apiPath === "/user/me" &&
 					operation.method === "GET"
 				)
 					continue;
+
+				const runtimeBlocker = getRuntimeOperationBlocker(
+					operation,
+					context,
+				);
+				if (runtimeBlocker) {
+					updateResult(operation.key, (r) => ({
+						...r,
+						status: "skipped",
+						details: runtimeBlocker,
+					}));
+					continue;
+				}
 
 				const prepared = prepareRequest(operation, spec, context);
 				if (!prepared.ok) {
@@ -1505,20 +1719,56 @@ export function Testing() {
 
 					if (response.ok) {
 						if (operation.phase === "setup") {
-							// For setup operations use priority harvest so that
-							// freshly-created IDs (e.g. classId from POST
-							// /class/create) replace any stale value that was
-							// pre-seeded from /user/me.
-							priorityHarvestPool(valuePool, response.body);
-							const data = getResponseData<unknown>(response.body);
-							if (data) priorityHarvestPool(valuePool, data);
-							// Room endpoints use the class ID as their {id} path param – keep in sync.
-							const latestClassId = findInPool(valuePool, ["classid"]);
-							if (latestClassId) setInPool(valuePool, "roomid", latestClassId);
+							if (
+								isManagedUserSetupOperation(
+									operation.apiPath,
+									operation.method,
+								)
+							) {
+								const managedUser = getManagedUserFromResponse(
+									response.body,
+								);
+								if (managedUser) {
+									setInPool(
+										valuePool,
+										MANAGED_USER_POOL_KEY,
+										managedUser.id,
+									);
+								}
+							} else {
+								// For setup operations use priority harvest so that
+								// freshly-created IDs (e.g. classId from POST
+								// /class/create) replace any stale value that was
+								// pre-seeded from /user/me.
+								priorityHarvestPool(valuePool, response.body);
+								const data = getResponseData<unknown>(
+									response.body,
+								);
+								if (data) priorityHarvestPool(valuePool, data);
+								// Room endpoints use the class ID as their {id} path param – keep in sync.
+								const latestClassId = findInPool(valuePool, [
+									"classid",
+								]);
+								if (latestClassId)
+									setInPool(
+										valuePool,
+										"roomid",
+										latestClassId,
+									);
+							}
 						} else {
 							harvestPool(valuePool, response.body);
 							const data = getResponseData<unknown>(response.body);
 							if (data) harvestPool(valuePool, data);
+						}
+
+						if (
+							isManagedUserTeardownOperation(
+								operation.apiPath,
+								operation.method,
+							)
+						) {
+							valuePool.delete(normalizeKey(MANAGED_USER_POOL_KEY));
 						}
 					}
 
@@ -1533,7 +1783,11 @@ export function Testing() {
 								: "failed",
 						statusCode: response.status,
 						durationMs: Math.round(performance.now() - start),
-						details: skipReason ?? summarizePayload(response.body),
+						details: getOperationResponseDetails(
+							operation,
+							response,
+							skipReason,
+						),
 					}));
 
 					// If a setup step failed, wipe dependent pool keys so that
@@ -1687,10 +1941,11 @@ export function Testing() {
 							</Typography.Title>
 							<Typography.Paragraph style={{ margin: "8px 0 0" }}>
 								Builds a browser-side test suite from the
-								Swagger spec. Click Run Suite to create a
-								temporary class, join it, start it, execute the
-								eligible endpoints, then end and remove that
-								class during teardown.
+								Swagger spec. Click Run Suite to create any
+								disposable resources it needs, including a
+								secondary user and temporary class, execute the
+								eligible endpoints, then clean them up during
+								teardown.
 							</Typography.Paragraph>
 							<Typography.Text type="secondary">
 								Last run: {runStartedAt ?? "Not run yet"}
@@ -1761,7 +2016,7 @@ export function Testing() {
 					type="info"
 					showIcon
 					message="Suite scope"
-					description="The suite is generated from /docs/openapi.json at runtime. Setup operations run first in a fixed order (class create → start → join) so subsequent tests have a real class to work with. DELETE endpoints and password-management endpoints are always excluded."
+					description="The suite is generated from /docs/openapi.json at runtime. Managed setup runs first so user- and class-dependent tests have real resources to target, and managed teardown cleans up the disposable user/class afterward. DELETE endpoints and password-management endpoints are excluded unless they are part of managed teardown."
 					style={getAppearAnimation(settings.disableAnimations, 4)}
 				/>
 

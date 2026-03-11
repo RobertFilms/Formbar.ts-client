@@ -151,10 +151,23 @@ type CurrentLoginData = CurrentUserData & {
 // Responses are harvested into it so later requests can pick up live IDs.
 type ValuePool = Map<string, string[]>;
 
+type SecondaryUserContext = {
+	email: string;
+	password: string;
+	displayName: string;
+	id?: string;
+	accessToken?: string;
+	refreshToken?: string;
+	pin?: string;
+};
+
 type TestingContext = {
 	me: CurrentLoginData;
 	valuePool: ValuePool;
+	secondaryUser: SecondaryUserContext;
 };
+
+type RequestActor = "primary" | "secondary" | "public";
 
 type PreparedRequestBody = {
 	contentType: string;
@@ -197,21 +210,45 @@ const SUPPORTED_REQUEST_CONTENT_TYPES = [
 ] as const;
 
 const AUTO_TEST_PASSWORD = "Password123!";
+const AUTO_TEST_PIN = "1234";
 const AUTO_TEST_DISPLAY_NAME = "Auto Test User";
 
 // Setup operations run first (in this order) before the main test suite.
 // They establish class state so class-scoped endpoints have real IDs to use.
 // Matched by method + normalised apiPath against whatever the Swagger spec exposes.
 const SETUP_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
+	{ method: "POST", apiPath: "/auth/register" },
+	{ method: "PATCH", apiPath: "/user/{id}/verify" },
+	{ method: "POST", apiPath: "/auth/login" },
 	{ method: "POST", apiPath: "/class/create" },
 	{ method: "POST", apiPath: "/class/{id}/join" },
 	{ method: "POST", apiPath: "/class/{id}/start" },
+	{ method: "POST", apiPath: "/room/{code}/join" },
 ];
 
 // Teardown operations run last to clean up test state.
 const TEARDOWN_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
-	{ method: "POST", apiPath: "/class/{id}/end" },
+	{ method: "POST", apiPath: "/class/{id}/leave" },
 	{ method: "DELETE", apiPath: "/room/{id}/leave" },
+	{ method: "PATCH", apiPath: "/user/{id}/ban" },
+	{ method: "PATCH", apiPath: "/user/{id}/unban" },
+	{ method: "POST", apiPath: "/class/{id}/end" },
+];
+
+const MAIN_MUTATION_ORDER: Array<{ method: HttpMethod; apiPath: string }> = [
+	{ method: "PATCH", apiPath: "/user/{id}/pin" },
+	{ method: "POST", apiPath: "/user/{id}/pin/verify" },
+	{ method: "POST", apiPath: "/digipogs/award" },
+	{ method: "POST", apiPath: "/digipogs/transfer" },
+	{ method: "POST", apiPath: "/class/{id}/polls/create" },
+	{ method: "POST", apiPath: "/class/{id}/polls/response" },
+	{ method: "POST", apiPath: "/class/{id}/polls/end" },
+	{ method: "POST", apiPath: "/class/{id}/polls/clear" },
+	{ method: "POST", apiPath: "/class/{id}/help/request" },
+	{ method: "POST", apiPath: "/class/{id}/break/request" },
+	{ method: "POST", apiPath: "/class/{id}/students/{userId}/break/approve" },
+	{ method: "POST", apiPath: "/class/{id}/break/end" },
+	{ method: "POST", apiPath: "/class/{id}/students/{userId}/break/deny" },
 ];
 
 // Pool keys to wipe when a setup operation fails, so downstream tests that
@@ -220,7 +257,7 @@ const TEARDOWN_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
 const SETUP_FAILURE_INVALIDATES: Partial<Record<string, string[]>> = {
 	// If temp-class creation fails, do not let later setup/main requests fall
 	// back to a pre-seeded active class from /user/me.
-	"POST:/class/create": ["classid", "roomid"],
+	"POST:/class/create": ["classid", "roomid", "roomcode", "classkey"],
 	// If joining fails, later class-scoped requests would mostly return auth
 	// errors because the user is not attached to the test class.
 	"POST:/class/{id}/join": ["classid", "roomid"],
@@ -286,6 +323,24 @@ function singularize(word: string): string {
 
 function normalizeKey(key: string): string {
 	return key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function matchesOperation(
+	operation: Pick<SwaggerOperation, "apiPath" | "method">,
+	method: HttpMethod,
+	apiPath: string,
+): boolean {
+	return operation.method === method && operation.apiPath === apiPath;
+}
+
+function createSecondaryUserContext(): SecondaryUserContext {
+	const seed = Date.now().toString(36).toLowerCase();
+	const suffix = seed.slice(-6).toUpperCase();
+	return {
+		email: `autotest+${seed}@example.com`,
+		password: AUTO_TEST_PASSWORD,
+		displayName: `AutoTest${suffix}`.slice(0, 20),
+	};
 }
 
 // ─── Value Pool ───────────────────────────────────────────────────────────────
@@ -382,8 +437,11 @@ function harvestPool(
 		return;
 	}
 	if (isRecord(value)) {
+		const nextParentResourceHint = keyHint
+			? singularize(normalizeKey(keyHint))
+			: parentResourceHint;
 		for (const [k, v] of Object.entries(value)) {
-			harvestPool(pool, v, k, parentResourceHint);
+			harvestPool(pool, v, k, nextParentResourceHint);
 		}
 	}
 }
@@ -775,6 +833,18 @@ function getOperationPhase(apiPath: string, method: HttpMethod): TestPhase {
 	return "main";
 }
 
+function getDeclaredOperationOrder(
+	operations: Array<{ method: HttpMethod; apiPath: string }>,
+	operation: Pick<SwaggerOperation, "apiPath" | "method">,
+): number {
+	const index = operations.findIndex(
+		(candidate) =>
+			candidate.method === operation.method &&
+			candidate.apiPath === operation.apiPath,
+	);
+	return index < 0 ? Number.POSITIVE_INFINITY : index;
+}
+
 function getOperationSummary(def: SwaggerOperationDefinition): string {
 	if (typeof def.summary === "string" && def.summary.length > 0)
 		return def.summary;
@@ -891,11 +961,276 @@ function buildSwaggerOperations(spec: SwaggerSpec): SwaggerOperation[] {
 		const aIsGet = a.method === "GET";
 		const bIsGet = b.method === "GET";
 		if (aIsGet !== bIsGet) return aIsGet ? -1 : 1;
+		if (!aIsGet) {
+			const aOrder = getDeclaredOperationOrder(MAIN_MUTATION_ORDER, a);
+			const bOrder = getDeclaredOperationOrder(MAIN_MUTATION_ORDER, b);
+			if (aOrder !== bOrder) return aOrder - bOrder;
+		}
 		return a.path.length - b.path.length || a.path.localeCompare(b.path);
 	});
 }
 
 // ─── Request preparation ──────────────────────────────────────────────────────
+
+function isSecondaryActorOperation(operation: SwaggerOperation): boolean {
+	return (
+		matchesOperation(operation, "POST", "/room/{code}/join") ||
+		matchesOperation(operation, "PATCH", "/user/{id}/pin") ||
+		matchesOperation(operation, "POST", "/user/{id}/pin/verify") ||
+		matchesOperation(operation, "POST", "/user/{id}/pin/reset") ||
+		matchesOperation(operation, "POST", "/user/{id}/verify/request") ||
+		matchesOperation(operation, "POST", "/class/{id}/break/request") ||
+		matchesOperation(operation, "POST", "/class/{id}/break/end") ||
+		matchesOperation(operation, "POST", "/class/{id}/help/request") ||
+		matchesOperation(operation, "POST", "/class/{id}/polls/response") ||
+		matchesOperation(operation, "POST", "/class/{id}/leave") ||
+		matchesOperation(operation, "DELETE", "/room/{id}/leave") ||
+		matchesOperation(operation, "POST", "/digipogs/transfer")
+	);
+}
+
+function shouldTargetSecondaryUser(operation: SwaggerOperation): boolean {
+	return (
+		operation.apiPath.startsWith("/user/") &&
+		operation.apiPath !== "/user/me" &&
+		operation.method !== "GET"
+	);
+}
+
+function getOperationActor(operation: SwaggerOperation): RequestActor {
+	if (
+		matchesOperation(operation, "POST", "/auth/register") ||
+		matchesOperation(operation, "POST", "/auth/login") ||
+		matchesOperation(operation, "PATCH", "/user/pin/reset") ||
+		matchesOperation(operation, "POST", "/oauth/token") ||
+		matchesOperation(operation, "POST", "/oauth/revoke")
+	) {
+		return "public";
+	}
+	return isSecondaryActorOperation(operation) ? "secondary" : "primary";
+}
+
+function getParameterOverrideValue(
+	operation: SwaggerOperation,
+	parameter: SwaggerParameter,
+	context: TestingContext,
+): string | undefined {
+	const name = parameter.name;
+	if (!name) return undefined;
+
+	if (
+		parameter.in === "path" &&
+		matchesOperation(operation, "POST", "/room/{code}/join") &&
+		name === "code"
+	) {
+		return findInPool(context.valuePool, [
+			"roomcode",
+			"classkey",
+			"classcode",
+			"key",
+		]);
+	}
+
+	if (
+		parameter.in === "path" &&
+		operation.apiPath.includes("/students/{userId}/") &&
+		name === "userId"
+	) {
+		return context.secondaryUser.id;
+	}
+
+	if (
+		parameter.in === "path" &&
+		shouldTargetSecondaryUser(operation) &&
+		name === "id"
+	) {
+		return context.secondaryUser.id;
+	}
+
+	if (
+		parameter.in === "path" &&
+		matchesOperation(operation, "PATCH", "/user/{email}/perm") &&
+		name === "email"
+	) {
+		return context.secondaryUser.email;
+	}
+
+	if (
+		parameter.in === "path" &&
+		(operation.apiPath === "/notifications/{id}" ||
+			operation.apiPath === "/notifications/{id}/mark-read") &&
+		name === "id"
+	) {
+		return findInPool(context.valuePool, ["notificationid"]);
+	}
+
+	if (parameter.in === "query" && operation.apiPath === "/oauth/authorize") {
+		switch (name) {
+			case "response_type":
+				return "code";
+			case "client_id":
+				return "autotest-client";
+			case "redirect_uri":
+				return "https://example.com/oauth/callback";
+			case "scope":
+				return "profile";
+			case "state":
+				return "autotest";
+			default:
+				return undefined;
+		}
+	}
+
+	return undefined;
+}
+
+function getOperationBodyOverride(
+	operation: SwaggerOperation,
+	context: TestingContext,
+): PreparedRequestBody | undefined {
+	const contentType = operation.requestContentType ?? "application/json";
+	if (contentType !== "application/json") return undefined;
+
+	if (matchesOperation(operation, "POST", "/auth/register")) {
+		return {
+			contentType,
+			value: {
+				email: context.secondaryUser.email,
+				password: context.secondaryUser.password,
+				displayName: context.secondaryUser.displayName,
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/auth/login")) {
+		return {
+			contentType,
+			value: {
+				email: context.secondaryUser.email,
+				password: context.secondaryUser.password,
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/class/create")) {
+		return {
+			contentType,
+			value: {
+				name: `${context.secondaryUser.displayName} Room`,
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "PATCH", "/user/{id}/pin")) {
+		return {
+			contentType,
+			value: { pin: AUTO_TEST_PIN },
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/user/{id}/pin/verify")) {
+		return {
+			contentType,
+			value: { pin: context.secondaryUser.pin ?? AUTO_TEST_PIN },
+		};
+	}
+
+	if (matchesOperation(operation, "PATCH", "/user/{id}/perm")) {
+		return {
+			contentType,
+			value: { perm: 3 },
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/digipogs/award")) {
+		return {
+			contentType,
+			value: {
+				to: {
+					id: context.secondaryUser.id,
+					type: "user",
+				},
+				amount: 1,
+				reason: "Automated test award",
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/digipogs/transfer")) {
+		return {
+			contentType,
+			value: {
+				to: String(context.me.id),
+				amount: 1,
+				pin: context.secondaryUser.pin ?? AUTO_TEST_PIN,
+				reason: "Automated test transfer",
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/class/{id}/break/request")) {
+		return {
+			contentType,
+			value: { reason: "Automated test break request" },
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/class/{id}/help/request")) {
+		return {
+			contentType,
+			value: { reason: "Automated test help request" },
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/class/{id}/polls/create")) {
+		return {
+			contentType,
+			value: {
+				prompt: "Automated test poll",
+				answers: ["Yes", "No"],
+				blind: false,
+				weight: 1,
+				tags: ["autotest"],
+				excludedRespondents: [],
+				indeterminate: [],
+				allowTextResponses: false,
+				allowMultipleResponses: false,
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/class/{id}/polls/response")) {
+		return {
+			contentType,
+			value: {
+				response: ["Yes"],
+				textRes: "",
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/oauth/token")) {
+		return {
+			contentType,
+			value: {
+				grant_type: "refresh_token",
+				refresh_token: refreshToken,
+			},
+		};
+	}
+
+	if (matchesOperation(operation, "POST", "/oauth/revoke")) {
+		return {
+			contentType,
+			value: {
+				token: refreshToken,
+				token_type_hint: "refresh_token",
+			},
+		};
+	}
+
+	return undefined;
+}
 
 // Resolves a parameter value using (in priority order):
 //   1. Explicit swagger example/default on the parameter
@@ -910,6 +1245,9 @@ function resolveParameterValue(
 ): string | null {
 	const name = parameter.name;
 	if (!name) return null;
+
+	const override = getParameterOverrideValue(operation, parameter, context);
+	if (override) return override;
 
 	// For PATH parameters: consult the pool FIRST so real IDs harvested from
 	// earlier responses (e.g. classId from POST /class/create) take priority
@@ -977,6 +1315,15 @@ function buildRequestBody(
 	| { status: "omit" }
 	| { status: "ready"; body: PreparedRequestBody }
 	| { status: "error"; reason: string } {
+	const overrideBody = getOperationBodyOverride(operation, context);
+	if (overrideBody) {
+		harvestPool(context.valuePool, overrideBody.value);
+		return {
+			status: "ready",
+			body: overrideBody,
+		};
+	}
+
 	if (!operation.requestBody?.content) return { status: "omit" };
 	if (!operation.requestContentType)
 		return {
@@ -1109,11 +1456,16 @@ async function callApi(
 	options: {
 		headers?: Record<string, string>;
 		body?: PreparedRequestBody;
+		authToken?: string;
+		omitDefaultAuth?: boolean;
 	} = {},
 ): Promise<ApiResponse> {
 	const headers: Record<string, string> = { ...options.headers };
-	if (accessToken && !headers.Authorization)
+	if (options.authToken) {
+		headers.Authorization = `Bearer ${options.authToken}`;
+	} else if (!options.omitDefaultAuth && accessToken && !headers.Authorization) {
 		headers.Authorization = `Bearer ${accessToken}`;
+	}
 
 	let body: BodyInit | undefined;
 	if (options.body) {
@@ -1192,6 +1544,103 @@ async function callApi(
 	};
 }
 
+function getOperationCallOptions(
+	operation: SwaggerOperation,
+	context: TestingContext,
+): {
+	authToken?: string;
+	omitDefaultAuth?: boolean;
+} {
+	switch (getOperationActor(operation)) {
+		case "secondary":
+			return {
+				authToken: context.secondaryUser.accessToken,
+				omitDefaultAuth: true,
+			};
+		case "public":
+			return {
+				omitDefaultAuth: true,
+			};
+		default:
+			return {};
+	}
+}
+
+async function runOperationPrerequisites(
+	operation: SwaggerOperation,
+	context: TestingContext,
+): Promise<string | null> {
+	if (
+		matchesOperation(
+			operation,
+			"POST",
+			"/class/{id}/students/{userId}/break/approve",
+		) ||
+		matchesOperation(operation, "POST", "/class/{id}/students/{userId}/break/deny")
+	) {
+		const classId = findInPool(context.valuePool, ["classid"]);
+		if (!classId || !context.secondaryUser.accessToken)
+			return "A temporary logged-in student is required for break approval tests.";
+
+		const response = await callApi(`/class/${encodeURIComponent(classId)}/break/request`, "POST", {
+			body: {
+				contentType: "application/json",
+				value: { reason: "Automated test break request" },
+			},
+			authToken: context.secondaryUser.accessToken,
+			omitDefaultAuth: true,
+		});
+		if (!response.ok) {
+			return `Failed to prepare a break request: ${summarizePayload(response.body)}`;
+		}
+	}
+
+	return null;
+}
+
+function applyOperationResponseContext(
+	operation: SwaggerOperation,
+	response: ApiResponse,
+	context: TestingContext,
+) {
+	if (!response.ok) return;
+
+	const data = getResponseData<Record<string, unknown>>(response.body);
+	if (!data) return;
+
+	if (matchesOperation(operation, "POST", "/auth/register")) {
+		const user = isRecord(data.user) ? data.user : null;
+		if (user && user.id != null) {
+			context.secondaryUser.id = String(user.id);
+			addToPool(context.valuePool, "secondaryuserid", context.secondaryUser.id);
+			addToPool(context.valuePool, "secondaryemail", context.secondaryUser.email);
+		}
+		return;
+	}
+
+	if (matchesOperation(operation, "POST", "/auth/login")) {
+		if (typeof data.accessToken === "string") {
+			context.secondaryUser.accessToken = data.accessToken;
+		}
+		if (typeof data.refreshToken === "string") {
+			context.secondaryUser.refreshToken = data.refreshToken;
+		}
+		return;
+	}
+
+	if (matchesOperation(operation, "PATCH", "/user/{id}/pin")) {
+		context.secondaryUser.pin = AUTO_TEST_PIN;
+		return;
+	}
+
+	if (matchesOperation(operation, "POST", "/class/create")) {
+		if (typeof data.key === "string") {
+			setInPool(context.valuePool, "roomcode", data.key);
+			setInPool(context.valuePool, "classkey", data.key);
+		}
+	}
+}
+
 // ─── Feature-disabled detection ─────────────────────────────────────────────
 // Some endpoints are gated behind optional server features (Google OAuth,
 // email, etc.).  When the feature is not configured the server returns a 403
@@ -1203,10 +1652,16 @@ const FEATURE_DISABLED_PATTERNS: RegExp[] = [
 	/is not enabled/i,
 	/is disabled on this server/i,
 	/not configured on this server/i,
+	/not available at this time/i,
 ];
 
 function getFeatureDisabledReason(response: ApiResponse): string | null {
-	if (response.status !== 403 && response.status !== 501) return null;
+	if (
+		response.status !== 403 &&
+		response.status !== 501 &&
+		response.status !== 503
+	)
+		return null;
 	const text = summarizePayload(response.body);
 	for (const pattern of FEATURE_DISABLED_PATTERNS) {
 		if (pattern.test(text)) return `Feature not available: ${text}`;
@@ -1277,6 +1732,70 @@ function getRuntimeOperationBlocker(
 		}
 	}
 
+	if (
+		matchesOperation(operation, "GET", "/oauth/authorize") &&
+		operation.method === "GET"
+	) {
+		return "OAuth authorization redirects are skipped by the browser runner.";
+	}
+
+	if (matchesOperation(operation, "PATCH", "/user/pin/reset")) {
+		return "PIN reset completion requires an emailed reset token that is not available to the suite.";
+	}
+
+	if (
+		isSecondaryActorOperation(operation) &&
+		!context.secondaryUser.accessToken
+	) {
+		return "Temporary user login did not complete.";
+	}
+
+	if (
+		shouldTargetSecondaryUser(operation) &&
+		!context.secondaryUser.id
+	) {
+		return "Temporary user registration did not complete.";
+	}
+
+	if (
+		(operation.apiPath.includes("/students/{userId}/") ||
+			matchesOperation(operation, "POST", "/digipogs/award")) &&
+		!context.secondaryUser.id
+	) {
+		return "No temporary secondary user is available.";
+	}
+
+	if (
+		matchesOperation(operation, "POST", "/room/{code}/join") &&
+		!findInPool(context.valuePool, ["roomcode", "classkey", "key"])
+	) {
+		return "No room code is available for the temporary class.";
+	}
+
+	if (
+		(matchesOperation(operation, "POST", "/user/{id}/pin/verify") ||
+			matchesOperation(operation, "POST", "/digipogs/transfer")) &&
+		!context.secondaryUser.pin
+	) {
+		return "Temporary user PIN setup did not complete.";
+	}
+
+	if (
+		(operation.apiPath === "/notifications/{id}" ||
+			operation.apiPath === "/notifications/{id}/mark-read") &&
+		!findInPool(context.valuePool, ["notificationid"])
+	) {
+		return "No notification is available for lookup.";
+	}
+
+	if (
+		(matchesOperation(operation, "POST", "/oauth/token") ||
+			matchesOperation(operation, "POST", "/oauth/revoke")) &&
+		!refreshToken
+	) {
+		return "No refresh token is available in the current browser session.";
+	}
+
 	return null;
 }
 
@@ -1308,7 +1827,14 @@ async function loadContext(valuePool: ValuePool): Promise<{
 		addToPool(valuePool, "roomid", String(activeClass));
 	}
 
-	return { meResult, context: { me, valuePool } };
+	return {
+		meResult,
+		context: {
+			me,
+			valuePool,
+			secondaryUser: createSecondaryUserContext(),
+		},
+	};
 }
 
 // ─── Swagger loader ───────────────────────────────────────────────────────────
@@ -1429,6 +1955,32 @@ export function Testing() {
 				)
 					continue;
 
+				const runtimeBlocker = getRuntimeOperationBlocker(
+					operation,
+					context,
+				);
+				if (runtimeBlocker) {
+					updateResult(operation.key, (r) => ({
+						...r,
+						status: "skipped",
+						details: runtimeBlocker,
+					}));
+					continue;
+				}
+
+				const prerequisiteBlocker = await runOperationPrerequisites(
+					operation,
+					context,
+				);
+				if (prerequisiteBlocker) {
+					updateResult(operation.key, (r) => ({
+						...r,
+						status: "skipped",
+						details: prerequisiteBlocker,
+					}));
+					continue;
+				}
+
 				const prepared = prepareRequest(operation, spec, context);
 				if (!prepared.ok) {
 					updateResult(operation.key, (r) => ({
@@ -1448,6 +2000,10 @@ export function Testing() {
 
 				const start = performance.now();
 				try {
+					const callOptions = getOperationCallOptions(
+						operation,
+						context,
+					);
 					// Initial call – retried automatically on 429.
 					let response: ApiResponse = await callApi(
 						prepared.path,
@@ -1455,6 +2011,7 @@ export function Testing() {
 						{
 							headers: prepared.headers,
 							body: prepared.body,
+							...callOptions,
 						},
 					);
 
@@ -1486,6 +2043,7 @@ export function Testing() {
 							{
 								headers: prepared.headers,
 								body: prepared.body,
+								...callOptions,
 							},
 						);
 					}
@@ -1520,6 +2078,11 @@ export function Testing() {
 							const data = getResponseData<unknown>(response.body);
 							if (data) harvestPool(valuePool, data);
 						}
+						applyOperationResponseContext(
+							operation,
+							response,
+							context,
+						);
 					}
 
 					// Detect feature-disabled responses (e.g. Google OAuth not configured).
@@ -1687,10 +2250,11 @@ export function Testing() {
 							</Typography.Title>
 							<Typography.Paragraph style={{ margin: "8px 0 0" }}>
 								Builds a browser-side test suite from the
-								Swagger spec. Click Run Suite to create a
-								temporary class, join it, start it, execute the
-								eligible endpoints, then end and remove that
-								class during teardown.
+								Swagger spec. Click Run Suite to register a
+								temporary user, create a temporary class, join
+								and start it, exercise the eligible endpoints
+								with the correct actor, then clean up during
+								teardown.
 							</Typography.Paragraph>
 							<Typography.Text type="secondary">
 								Last run: {runStartedAt ?? "Not run yet"}
@@ -1761,7 +2325,7 @@ export function Testing() {
 					type="info"
 					showIcon
 					message="Suite scope"
-					description="The suite is generated from /docs/openapi.json at runtime. Setup operations run first in a fixed order (class create → start → join) so subsequent tests have a real class to work with. DELETE endpoints and password-management endpoints are always excluded."
+					description="The suite is generated from /docs/openapi.json at runtime. Setup operations run first in a fixed order (register temp user → verify → login → create class → join → start → join by room code) so later tests have real user and class context. DELETE endpoints are excluded unless they are part of managed teardown, and password-management endpoints remain excluded."
 					style={getAppearAnimation(settings.disableAnimations, 4)}
 				/>
 

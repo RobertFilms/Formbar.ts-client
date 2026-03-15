@@ -2200,12 +2200,17 @@ export function Testing() {
 			reason: op.autoRunBlocker!,
 		}));
 
+	const wordBreakCell = () => ({
+		style: { wordBreak: "break-word" as const, whiteSpace: "normal" as const },
+	});
+
 	const resultColumns = [
 		{
 			title: "Category",
 			dataIndex: "category",
 			key: "category",
 			width: 160,
+			onCell: wordBreakCell,
 		},
 		{
 			title: "Method",
@@ -2217,10 +2222,13 @@ export function Testing() {
 		{
 			title: "Endpoint",
 			key: "endpoint",
+			onCell: wordBreakCell,
 			render: (_: unknown, r: TestResult) => (
 				<div>
 					<div>{r.label}</div>
-					<Typography.Text type="secondary">{r.path}</Typography.Text>
+					<Typography.Text type="secondary" style={{ wordBreak: "break-all" }}>
+						{r.path}
+					</Typography.Text>
 				</div>
 			),
 		},
@@ -2231,7 +2239,12 @@ export function Testing() {
 			width: 110,
 			render: (v: TestStatus) => getStatusTag(v),
 		},
-		{ title: "Details", dataIndex: "details", key: "details" },
+		{
+			title: "Details",
+			dataIndex: "details",
+			key: "details",
+			onCell: wordBreakCell,
+		},
 		{
 			title: "Time",
 			key: "durationMs",

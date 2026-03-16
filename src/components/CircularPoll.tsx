@@ -14,11 +14,17 @@ type CircularPollProperties = {
 type PollObjectProperties = {
 	poll: Poll;
 	size?: number;
+    timer?: {
+        active: boolean;
+        current: number;
+        duration: number;
+    }
 };
 
 export default function FullCircularPoll({
 	poll,
 	size = 400,
+    timer = { active: false, current: 0, duration: 0 },
 }: PollObjectProperties) {
     const { isDark } = useTheme();
 	const ringStrokeWidth = 23;
@@ -125,24 +131,29 @@ export default function FullCircularPoll({
 					}}
 				/>
             {/* Timer */}
-            {/* <Progress
-                style={{
-                    position: 'absolute',
-                    pointerEvents: 'none',
-                    left: '50%',
-                    top: '50%',
-                    transform: 'translate(-50%, -50%)',
-                }}
-                type="dashboard"
-                percent={100}
-                strokeColor={{
-                    '0%': 'rgb(94, 158, 230)',
-                    '100%': 'rgba(41, 96, 167, 0.9)',
-                }}
-                strokeWidth={15}
-                gapDegree={50}
-                size={size / 2}
-            /> */}
+            {
+                timer.active && (
+                    <Progress
+                        style={{
+                            position: 'absolute',
+                            pointerEvents: 'none',
+                            left: '50%',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                        }}
+                        type="dashboard"
+                        percent={timer.current}
+                        format={() => `${Math.round(timer.duration * (timer.current / 100) / 1000)}s`}
+                        strokeColor={{
+                            '0%': 'rgb(94, 158, 230)',
+                            '100%': 'rgba(41, 96, 167, 0.9)',
+                        }}
+                        strokeWidth={15}
+                        gapDegree={50}
+                        size={size / 2}
+                    />
+                )
+            }
 			<Progress
 				style={{
 					position: "absolute" as "absolute",

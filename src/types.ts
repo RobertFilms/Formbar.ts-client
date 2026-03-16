@@ -32,7 +32,7 @@ export type ClassData = {
 	owner: number;
 	timer: {
 		startTime: number;
-		timeLeft: number;
+		endTime: number;
 		active: boolean;
 		sound: boolean;
 	};

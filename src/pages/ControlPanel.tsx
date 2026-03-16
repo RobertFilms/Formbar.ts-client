@@ -34,6 +34,26 @@ import FullCircularPoll from "../components/CircularPoll";
 import type { Poll } from "../types";
 import { textColorForBackground } from "../CustomStyleFunctions";
 
+function toEpochMs(value: unknown): number | null {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value < 1_000_000_000_000 ? value * 1000 : value;
+	}
+
+	if (typeof value === "string") {
+		const asNumber = Number(value);
+		if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) {
+			return asNumber < 1_000_000_000_000 ? asNumber * 1000 : asNumber;
+		}
+
+		const parsedDate = Date.parse(value);
+		if (!Number.isNaN(parsedDate)) {
+			return parsedDate;
+		}
+	}
+
+	return null;
+}
+
 const items = [
 	{
 		key: "1",
@@ -177,6 +197,41 @@ export default function ControlPanel() {
 		}
 
 	}, [userData, navigate]);
+
+    useEffect(() => {
+		if (!classData?.timer?.active) return;
+
+		const startMs = toEpochMs(classData.timer.startTime);
+		const endMs = toEpochMs(classData.timer.endTime);
+
+		if (startMs === null || endMs === null || endMs <= startMs) {
+			return;
+		}
+
+		let animationFrameId = 0;
+		let cancelled = false;
+
+		const animate = () => {
+			const now = Date.now();
+			const t = Math.min(Math.max((now - startMs) / (endMs - startMs), 0), 1);
+			const lerpPercent = 100 * t;
+
+			console.log(`[Timer Lerp] ${lerpPercent.toFixed(2)}%`);
+
+			if (t < 1 && !cancelled) {
+				animationFrameId = requestAnimationFrame(animate);
+			}
+		};
+
+		animationFrameId = requestAnimationFrame(animate);
+
+		return () => {
+			cancelled = true;
+			if (animationFrameId) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
+	}, [classData?.timer?.active, classData?.timer?.startTime, classData?.timer?.endTime]);
 
 	return (
 		<>

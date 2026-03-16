@@ -11,6 +11,26 @@ import StudentMenu from "../components/StudentMenu";
 import { useNavigate } from "react-router-dom";
 const { Title, Text } = Typography;
 
+function toEpochMs(value: unknown): number | null {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value < 1_000_000_000_000 ? value * 1000 : value;
+	}
+
+	if (typeof value === "string") {
+		const asNumber = Number(value);
+		if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) {
+			return asNumber < 1_000_000_000_000 ? asNumber * 1000 : asNumber;
+		}
+
+		const parsedDate = Date.parse(value);
+		if (!Number.isNaN(parsedDate)) {
+			return parsedDate;
+		}
+	}
+
+	return null;
+}
+
 export default function Student() {
 	const navigate = useNavigate();
 	const { userData: initialUserData } = useUserData();
@@ -22,6 +42,7 @@ export default function Student() {
 
 	const [textResponse, setTextResponse] = useState<string>("");
 	const [selectedResponses, setSelectedResponses] = useState<string[]>([]);
+    const [timerLerpPercent, setTimerLerpPercent] = useState<number>(0);
 	const lastPollDataRef = useRef<any>(null);
 
 	const [pollWidth, setPollWidth] = useState<number>(
@@ -150,6 +171,43 @@ export default function Student() {
 		}
 
 	}, [userData, navigate]);
+    
+        useEffect(() => {
+            if (!classData?.timer?.active) return;
+    
+            const startMs = toEpochMs(classData.timer.startTime);
+            const endMs = toEpochMs(classData.timer.endTime);
+    
+            if (startMs === null || endMs === null || endMs <= startMs) {
+                return;
+            }
+    
+            let animationFrameId = 0;
+            let cancelled = false;
+    
+            const animate = () => {
+                const now = Date.now();
+                const t = Math.min(Math.max((now - startMs) / (endMs - startMs), 0), 1);
+                const lerpPercent = 100 * t;
+
+                setTimerLerpPercent(lerpPercent);
+    
+                console.log(`[Timer Lerp] ${lerpPercent.toFixed(2)}%`);
+    
+                if (t < 1 && !cancelled) {
+                    animationFrameId = requestAnimationFrame(animate);
+                }
+            };
+    
+            animationFrameId = requestAnimationFrame(animate);
+    
+            return () => {
+                cancelled = true;
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+            };
+        }, [classData?.timer?.active, classData?.timer?.startTime, classData?.timer?.endTime]);
 
 	return (
 		<>
@@ -202,10 +260,19 @@ export default function Student() {
 											}
 								}
 							>
-                                <FullCircularPoll
-                                    poll={classData.poll}
-                                    size={pollWidth}
-                                />
+								<FullCircularPoll
+									poll={classData.poll}
+									size={pollWidth}
+									timer={{
+										active: classData?.timer?.active ?? false,
+										current: timerLerpPercent,
+										duration:
+											toEpochMs(classData?.timer?.endTime) !== null &&
+											toEpochMs(classData?.timer?.startTime) !== null
+												? toEpochMs(classData.timer.endTime)! - toEpochMs(classData.timer.startTime)!
+												: 0,
+									}}
+								/>
 							</Flex>
 						) : null}
 

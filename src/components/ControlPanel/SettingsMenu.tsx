@@ -32,6 +32,7 @@ export default function SettingsMenu() {
     const [newTagInput, setNewTagInput] = useState<string>("");
 
 	const [api, contextHolder] = notification.useNotification();
+    const [modal, contextHolderModal] = Modal.useModal();
 
 	const showErrorNotification = (message: string) => {
 		api["error"]({
@@ -164,7 +165,9 @@ export default function SettingsMenu() {
 
 
 	return (
-		<>{contextHolder}
+		<>
+        {contextHolder}
+        {contextHolderModal}
 			<Flex
 				gap={50}
 				style={{ height: "100%", width: "100%", overflowY: "auto" }}
@@ -187,7 +190,7 @@ export default function SettingsMenu() {
 						<Flex vertical gap={20}>
 							<Flex
 								gap={10}
-								style={{ width: isMobile ? "100%" :"500px" }}
+								style={{ width: isMobile ? "100%" :"600px" }}
 								justify="center"
 								align="center"
                                 vertical={isMobile}
@@ -209,7 +212,7 @@ export default function SettingsMenu() {
 
 							<Flex
 								gap={10}
-								style={{ width: isMobile ? "100%" : "400px" }}
+								style={{ width: isMobile ? "100%" : "600px" }}
 								justify="center"
 								align="center"
                                 vertical={isMobile}
@@ -220,6 +223,29 @@ export default function SettingsMenu() {
 								<Button variant="solid" color="danger" style={{cursor:'not-allowed', opacity: 0.5}}>
 									Regenerate Code
 								</Button>
+								<Button variant="solid" color="danger" onClick={()=>
+                                    modal.warning({
+                                        title: "Are you sure you want to delete this class?",
+                                        centered: true,
+                                        content: 'This action is irreversible, and you will not be able to recover this class.',
+                                        okCancel: true,
+                                        onOk: () => {
+                                            fetch(`${formbarUrl}/api/v1/room/${classData?.id}/`, {
+                                                method: "DELETE",
+                                                headers: {
+                                                    Authorization: `Bearer ${accessToken}`
+                                                }
+                                            })
+                                            .then((res) => res.json())
+                                            .then((res) => {
+                                                console.log(res)
+                                            })
+                                        }
+                                    })
+                                }>
+									Delete Class
+								</Button>
+
 							</Flex>
 						</Flex>
 						

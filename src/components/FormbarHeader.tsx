@@ -136,7 +136,7 @@ export default function FormbarHeader() {
                 </>
 			)}
 			<Flex align="center" justify="center" gap={10}>
-                { isDev && (<>
+                { isDev && !isMobileView && userData && (<>
                     <Tooltip
                         mouseEnterDelay={0.5}
                         placement="bottomRight"
@@ -157,7 +157,7 @@ export default function FormbarHeader() {
                     </Tooltip>
                     </>
                 )}
-                { userData && userData.permissions >= 5 && (<>
+                { !isMobileView && isDev && userData && userData.permissions >= 5 && (<>
                     <Tooltip
                         mouseEnterDelay={0.5}
                         placement="bottomRight"

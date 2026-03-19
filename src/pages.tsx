@@ -10,6 +10,7 @@ import Transactions from "./pages/Transactions.tsx";
 import ManagerPanel from "./pages/ManagerPanel.tsx";
 import NotFound from "./pages/404.tsx";
 import { Testing } from "./pages/Testing.tsx";
+import { Debug } from "./pages/Debug.tsx";
 import PinResetPage from "./pages/PinReset.tsx";
 import EmailVerifyPage from "./pages/EmailVerify.tsx";
 
@@ -100,6 +101,12 @@ const pages: Page[] = [
         pageName: "Testing",
         routePath: "/testing",
         page: Testing
+    },
+    {
+        pageName: "Debug",
+        routePath: "/debug",
+        page: Debug,
+        permissions: Permissions.MANAGER,
     },
     {
         pageName: "Classes",

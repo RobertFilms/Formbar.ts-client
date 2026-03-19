@@ -155,6 +155,27 @@ export default function FormbarHeader() {
                             <IonIcon icon={IonIcons.bug} size="large" />
                         </Button>
                     </Tooltip>
+                    </>
+                )}
+                { userData && userData.permissions >= 5 && (<>
+                    <Tooltip
+                        mouseEnterDelay={0.5}
+                        placement="bottomRight"
+                        title="Debug"
+                        arrow={{ pointAtCenter: true }}
+                        color="volcano"
+                    >
+                        <Button
+                            type="primary"
+                            variant="solid"
+                            color="volcano"
+                            size="large"
+                            style={styles.headerButton}
+                            onClick={() => navigate("/debug")}
+                        >
+                            <IonIcon icon={IonIcons.construct} size="large" />
+                        </Button>
+                    </Tooltip>
                     <div
 					style={{
 						borderRight: `2px solid ${isDark ? "#fff3" : "#0003"}`,

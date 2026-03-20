@@ -1,11 +1,12 @@
 import { io, Socket } from "socket.io-client";
 import Log from "./debugLogger";
+import { authLogin, refreshAuthToken, setRefreshToken, getRefreshToken, clearAuthTokens } from "./api/authApi";
 
 //! ONLY UNTIL LOGIN IS IMPLEMENTED
 export const formbarUrl = import.meta.env.VITE_FORMBAR_API_URL || "http://localhost:420";
 
-export let refreshToken: string;
-export let accessToken: string;
+export let refreshToken: string = getRefreshToken() || "";
+export let accessToken: string = "";
 export let socket: Socket;
 
 type SocketEventHandlers = {
@@ -42,56 +43,52 @@ function attachEventHandlers() {
 	}
 }
 
-export function socketLogin(token: string) {
-	fetch(`${formbarUrl}/api/v1/auth/refresh`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({ token: token }),
-	})
+export function socketLogin(token?: string) {
+	// Get the decrypted token from storage, or use the parameter as fallback
+	const tokenToUse = getRefreshToken() || token || "";
+	
+	if (!tokenToUse) {
+		Log({ message: "No refresh token available", level: "error" });
+		window.dispatchEvent(new CustomEvent("formbar:authfailed"));
+		return;
+	}
+
+	refreshAuthToken(tokenToUse)
 		.then(async (res) => {
 			if (!res.ok) {
-				// localStorage.removeItem('refreshToken');
+				clearAuthTokens();
 				Log({ message: "Failed to refresh token", level: "error" });
 
-				const loginResponse = await fetch(
-					`${formbarUrl}/api/v1/auth/login`,
-					{
-						method: "POST",
-						headers: { "Content-Type": "application/x-www-form-urlencoded" },
-						body: localStorage.getItem("formbarLoginData")!,
-					},
-				);
-				if (!loginResponse.ok) {
-					const errorData = await loginResponse.json();
-					throw new Error("Login failed", { cause: errorData });
+				// Get cached credentials from sessionStorage (lost on page refresh)
+				const cachedCreds = sessionStorage.getItem("formbarLoginCreds");
+				if (!cachedCreds) {
+					window.dispatchEvent(new CustomEvent("formbar:authfailed"));
+					return null;
 				}
-				const loginData = await loginResponse.json();
-				const { data } = loginData;
+
+				const [email, password] = JSON.parse(cachedCreds);
+				const loginResponse = await authLogin(email, password);
+				if (!loginResponse.ok) {
+					throw new Error("Login failed", { cause: loginResponse.error });
+				}
+				const { data } = loginResponse;
 				let { accessToken, refreshToken } = data;
-				Log({ message: "Login successful", data: loginData });
+				Log({ message: "Login successful", data: loginResponse });
 
 				// Delegate to a fresh socketLogin call and stop this chain
 				// so the next .then() is not reached with undefined.
 				socketLogin(refreshToken);
 				return null;
 			}
-			return res.json();
-		})
-		.then((response) => {
-			// If the re-login fallback already called socketLogin recursively,
-			// response is null — nothing left to do in this chain.
-			if (!response) return;
 
-			const { data } = response;
+			const { data } = res;
 			const {
 				accessToken: newAccessToken,
 				refreshToken: newRefreshToken,
 			} = data;
 			Log({ message: "Token refreshed successfully", data });
 
-			localStorage.setItem("refreshToken", newRefreshToken);
+			setRefreshToken(newRefreshToken);
 			refreshToken = newRefreshToken;
 			accessToken = newAccessToken;
 

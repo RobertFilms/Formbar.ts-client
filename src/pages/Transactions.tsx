@@ -9,6 +9,7 @@ import { useMobileDetect, useUserData } from "../main";
 import { useEffect, useState } from "react";
 import { accessToken, formbarUrl } from "../socket";
 import { useParams } from "react-router-dom";
+import { getUserTransactions } from "../api/userApi";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -32,17 +33,7 @@ export default function Transactions() {
 		const targetUserId = id ? id : String(userData.id);
 		const abortController = new AbortController();
 
-		fetch(
-			`${formbarUrl}/api/v1/user/${targetUserId}/transactions?limit=${pageSize}&offset=${offset}`,
-			{
-				method: "GET",
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-				},
-				signal: abortController.signal,
-			},
-		)
-			.then((res) => res.json())
+		getUserTransactions(targetUserId, pageSize, offset)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Transactions data", data });

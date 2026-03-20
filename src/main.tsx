@@ -24,6 +24,7 @@ import {
 	socketLogin,
 	accessToken,
 } from "./socket";
+import { clearAuthTokens } from "./api/authApi";
 
 import {
 	darkMode,
@@ -37,6 +38,8 @@ import "./assets/css/index.css";
 import pages from "./pages";
 import type { ClassData, CurrentUserData } from "./types";
 import Log from "./debugLogger";
+import { getMe, getUser, requestUserVerificationEmail } from "./api/userApi";
+import { getPublicKey, getServerConfig } from "./api/systemApi";
 
 export const isDev: boolean = !import.meta.env.PROD;
 
@@ -274,14 +277,11 @@ const AppContent = () => {
 
 	const fetchConfig = async () => {
 		try {
-			const configResponse = await fetch(`${formbarUrl}/api/v1/config`, {
-				method: "GET",
-			});
-			const configPayload = await configResponse.json();
+			const configResponse = await getServerConfig();
 			const nextConfig: ServerConfig = {
-				emailEnabled: Boolean(configPayload?.data?.emailEnabled),
+				emailEnabled: Boolean(configResponse?.data?.emailEnabled),
 				googleOauthEnabled: Boolean(
-					configPayload?.data?.googleOauthEnabled,
+					configResponse?.data?.googleOauthEnabled,
 				),
 			};
 			setConfig(nextConfig);
@@ -300,18 +300,9 @@ const AppContent = () => {
 	const fetchUserData = async () => {
 		if (!accessToken) return;
 		try {
-			const userResponse = await fetch(`${formbarUrl}/api/v1/user/me`, {
-				method: "GET",
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-				},
-			});
+			const userResponse = await getMe();
 
-			const userPayload = await userResponse.json();
-			const { data } = userPayload;
-			if (userPayload?.error || !data?.id) {
-				throw new Error("Failed to load current user data");
-			}
+			const { data } = userResponse;
 
 			const serverConfig = config || (await fetchConfig());
 			if (!serverConfig?.emailEnabled) {
@@ -323,17 +314,9 @@ const AppContent = () => {
 				setUserData(data);
             }
 
-			const userDetailResponse = await fetch(
-				`${formbarUrl}/api/v1/user/${data.id}`,
-				{
-					method: "GET",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				},
-			);
-			const userDetailPayload = await userDetailResponse.json();
-			const verified = Number(userDetailPayload?.data?.verified);
+			const userDetailResponse = await getUser(data.id);
+            
+			const verified = Number(userDetailResponse?.data?.verified);
 
 			if (!Number.isNaN(verified)) {
 				const nextUserData = { ...data, verified };
@@ -347,6 +330,7 @@ const AppContent = () => {
 				setUserData(data);
 			}
 		} catch (err) {
+            console.log(err)
 			Log({
 				message: "Error fetching user data",
 				data: err,
@@ -357,8 +341,8 @@ const AppContent = () => {
 	};
 
 	const handleLogout = () => {
-		localStorage.removeItem("refreshToken");
-		localStorage.removeItem("formbarLoginData");
+		clearAuthTokens();
+		sessionStorage.removeItem("formbarLoginCreds");
 		socket?.disconnect();
 		setUserData(null);
 		navigate("/login");
@@ -369,19 +353,10 @@ const AppContent = () => {
 
 		setVerificationRequestLoading(true);
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/verify/request`,
-				{
-					method: "POST",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				},
-			);
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+			const response = await requestUserVerificationEmail(String(userData.id));
+			if (!response.ok || response?.error) {
 				throw new Error(
-					payload?.error?.message ||
+					response?.error?.message ||
 						"Failed to request verification email",
 				);
 			}
@@ -423,23 +398,21 @@ const AppContent = () => {
 
 		fetchConfig();
 
-		function pingServer() {
+		async function pingServer() {
 			attempts++;
 			setHttpErrorCount(attempts - 1);
 
-			fetch(`${formbarUrl}/api/v1/certs`, { method: "GET" })
-				.then((res) => {
-					if (res.ok) {
+			await getPublicKey()
+				.then(({success}) => {
+					if (success) {
 						Log({
 							message: "Ping successful.",
-							data: res.status,
 							level: "info",
 						});
 						setHttpErrorCount(0);
 					} else {
 						Log({
-							message: "Ping failed with status",
-							data: res.status,
+							message: "Ping failed.",
 							level: "error",
 						});
 						if (attempts < connectionTriesLimit) {
@@ -534,10 +507,8 @@ const AppContent = () => {
 				message: "All auth attempts failed – clearing tokens and redirecting to login",
 				level: "warn",
 			});
-            if(import.meta.env.PROD) {
-                localStorage.removeItem("refreshToken");
-                localStorage.removeItem("formbarLoginData");
-            }
+			clearAuthTokens();
+			sessionStorage.removeItem("formbarLoginCreds");
 			setIsConnected(true); // dismiss the loading screen
 			navigate("/login");
 		}

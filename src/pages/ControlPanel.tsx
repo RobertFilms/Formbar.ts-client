@@ -33,6 +33,8 @@ import { isMobile } from "../main";
 import { useNavigate } from "react-router-dom";
 import TimerPage from "../components/ControlPanel/TimerPage";
 import { formatTime, textColorForBackground, toEpochMs } from "../GlobalFunctions";
+import { clearCurrentPoll, endPoll } from "../api/classApi";
+import { clearTimer, pauseTimer, resumeTimer } from "../api/timerApi";
 
 const items = [
 	{
@@ -299,42 +301,24 @@ export default function ControlPanel() {
                                             if (!classData) return;
                                             if (classData.timer.active) {
                                                 // Pause timer
-                                                fetch(`${formbarUrl}/api/v1/class/${classData.id}/timer/pause`, {
-                                                    method: "POST",
-                                                    headers: {
-                                                        "Content-Type": "application/json",
-                                                        "Authorization": `Bearer ${accessToken}`,
-                                                    },
-                                                })
+                                                pauseTimer(classData.id)
                                                 .then((res) => {
                                                     if (!res.ok) {
                                                         throw new Error("Failed to pause timer");
                                                     }
-                                                    return res.json();
-                                                })
-                                                .then((data) => {
-                                                    Log({message: "Timer paused:", data});
+                                                    Log({message: "Timer paused:", data: res.data});
                                                 })
                                                 .catch((err) => {
                                                     Log({message: "Error pausing timer:", data: err, level: 'error'});
                                                 });
                                             } else {
                                                 // Resume timer
-                                                fetch(`${formbarUrl}/api/v1/class/${classData.id}/timer/resume`, {
-                                                    method: "POST",
-                                                    headers: {
-                                                        "Content-Type": "application/json",
-                                                        "Authorization": `Bearer ${accessToken}`,
-                                                    },
-                                                })
+                                                resumeTimer(classData.id)
                                                 .then((res) => {
                                                     if (!res.ok) {
                                                         throw new Error("Failed to resume timer");
                                                     }
-                                                    return res.json();
-                                                })
-                                                .then((data) => {
-                                                    Log({message: "Timer resumed:", data});
+                                                    Log({message: "Timer resumed:", data: res.data});
                                                 })
                                                 .catch((err) => {
                                                     Log({message: "Error resuming timer:", data: err, level: 'error'});
@@ -354,21 +338,12 @@ export default function ControlPanel() {
                                         onClick={() => {
                                             if (!classData) return;
                                             // Clear timer
-                                            fetch(`${formbarUrl}/api/v1/class/${classData.id}/timer/clear`, {
-                                                method: "POST",
-                                                headers: {
-                                                    "Content-Type": "application/json",
-                                                    "Authorization": `Bearer ${accessToken}`,
-                                                },
-                                            })
+                                            clearTimer(classData.id)
                                             .then((res) => {
                                                 if (!res.ok) {
                                                     throw new Error("Failed to clear timer");
                                                 }
-                                                return res.json();
-                                            })
-                                            .then((data) => {
-                                                Log({message: "Timer cleared:", data});
+                                                Log({message: "Timer cleared:", data: res.data});
                                             })
                                             .catch((err) => {
                                                 Log({message: "Error clearing timer:", data: err, level: 'error'});
@@ -408,7 +383,7 @@ export default function ControlPanel() {
                                     width: "100%",
                                 }}
                             >
-                                {answer.answer} - {answer.responses} votes
+                                {answer.answer} - {answer.responses} vote{answer.responses !== 1 ? "s" : ""}
                             </Button>
                         ))}
 
@@ -474,21 +449,12 @@ export default function ControlPanel() {
                                         }
                                     }}
                                     onClick={() => {
-                                        fetch(`${formbarUrl}/api/v1/class/${classData?.id}/polls/end`, {
-                                            method: "POST",
-                                            headers: {
-                                                "Content-Type": "application/json",
-                                                "Authorization": `Bearer ${accessToken}`,
-                                            },
-                                        })
+                                        endPoll(classData!.id)
                                         .then((res) => {
                                             if (!res.ok) {
                                                 throw new Error("Failed to end poll");
                                             }
-                                            return res.json();
-                                        })
-                                        .then((data) => {
-                                            Log({message: "Poll ended:", data});
+                                            Log({message: "Poll ended:", data: res.data});
                                         })
                                         .catch((err) => {
                                             Log({message: "Error ending poll:", data: err, level: 'error'});
@@ -514,21 +480,12 @@ export default function ControlPanel() {
                                         }
                                     }}
                                     onClick={() => {
-                                        fetch(`${formbarUrl}/api/v1/class/${classData?.id}/polls/clear`, {
-                                            method: "POST",
-                                            headers: {
-                                                "Content-Type": "application/json",
-                                                "Authorization": `Bearer ${accessToken}`,
-                                            },
-                                        })
+                                        clearCurrentPoll(classData!.id)
                                         .then((res) => {
                                             if (!res.ok) {
                                                 throw new Error("Failed to clear polls");
                                             }
-                                            return res.json();
-                                        })
-                                        .then((data) => {
-                                            Log({message: "Polls cleared:", data});
+                                            Log({message: "Polls cleared:", data: res.data});
                                         })
                                         .catch((err) => {
                                             Log({message: "Error clearing polls:", data: err, level: 'error'});

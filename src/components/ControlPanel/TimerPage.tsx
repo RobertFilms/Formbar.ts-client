@@ -7,6 +7,7 @@ import * as IonIcons from "ionicons/icons";
 import { accessToken, formbarUrl } from '../../socket';
 import { useState } from 'react';
 import Log from '../../debugLogger';
+import { startTimer as startTimerAPI } from '../../api/timerApi';
 
 const { Text, Title } = Typography;
 
@@ -52,14 +53,7 @@ export default function TimerPage() {
             return;
         }
 
-        fetch(`${formbarUrl}/api/v1/class/${classData.id}/timer/start`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ duration: duration * 1000, sound: false })
-        })
+        startTimerAPI(classData.id, duration * 1000)
         .then((res) => {
             if (!res.ok) {
                 throw new Error("Failed to start timer");

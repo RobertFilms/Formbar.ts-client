@@ -21,11 +21,13 @@ type PollProperties = {
     allowVoteChanges: boolean;
     excludedRespondents: any[];
     indeterminate: any[];
+    tags: string[];
     allowTextResponses: boolean;
     allowMultipleResponses: boolean;
 };
 
-import { socket } from "../../socket";
+import { accessToken, formbarUrl, socket } from "../../socket";
+import { createPoll } from "../../api/classApi";
 
 function randomColor() {
     const letters = '0123456789ABCDEF';
@@ -104,28 +106,12 @@ export default function PollsEditorMenu() {
         allowVoteChanges: true,
         excludedRespondents: [],
         indeterminate: [],
+        tags: [],
         allowTextResponses: false,
         allowMultipleResponses: false,
     });
 
     function startCustomPoll() {
-        //? Use fetch WHEN IT ACTUALLY WORKS.
-        // fetch(`${formbarUrl}/api/v1/class/${classData?.id}/polls/create`, {
-        //     method: "POST",
-        //     headers: {
-        //         "Content-Type": "application/json",
-        //         "Authorization": `Bearer ${accessToken}`,
-        //     },
-        //     body: JSON.stringify(pollProperties),
-        // })
-        // .then((res) => res.json())
-        // .then((data) => {
-        //     socket?.emit("classUpdate", ""); // Refresh class data to show new poll
-        // })
-        // .catch((err) => {
-        //     console.error("Error starting custom poll:", err);
-        // });
-
 		if (!classData?.isActive) {
 			showErrorNotification(
                 "Class is not active.",
@@ -133,7 +119,17 @@ export default function PollsEditorMenu() {
 			return;
 		}
 
-        socket && socket.emit("startPoll", pollProperties);
+        //? Use fetch WHEN IT ACTUALLY WORKS.
+        createPoll(classData.id, pollProperties)
+            .then((data) => {
+                console.log("Poll created:", data);
+                socket?.emit("classUpdate", ""); // Refresh class data to show new poll
+            })
+            .catch((err) => {
+                console.error("Error starting custom poll:", err);
+            });
+
+        // socket && socket.emit("startPoll", pollProperties);
     }
 
     return (

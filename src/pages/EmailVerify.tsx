@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import FormbarHeader from "../components/FormbarHeader";
 import { formbarUrl } from "../socket";
+import { verifyUserEmail } from "../api/userApi";
 
 const { Text, Title } = Typography;
 
@@ -27,21 +28,15 @@ export default function EmailVerifyPage() {
 		setState("loading");
 		setStatusMessage("Verifying your email...");
 
-		fetch(`${formbarUrl}/api/v1/user/verify/email?code=${encodeURIComponent(code)}`, {
-			method: "GET",
-			headers: {
-				Accept: "application/json",
-			},
-		})
+		verifyUserEmail(code)
 			.then(async (res) => {
-				const payload = await res.json();
-				if (!res.ok || payload?.error) {
-					throw new Error(payload?.error?.message || "Email verification failed.");
+				if (!res.ok || res?.error) {
+					throw new Error(res?.error?.message || "Email verification failed.");
 				}
 
 				if (!isMounted) return;
 				setState("success");
-				setStatusMessage(payload?.data?.message || "Email verified successfully.");
+				setStatusMessage(res?.data?.message || "Email verified successfully.");
 			})
 			.catch((err) => {
 				if (!isMounted) return;

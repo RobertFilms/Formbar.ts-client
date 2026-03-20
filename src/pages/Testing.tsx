@@ -1,47 +1,17 @@
 import { Button, Flex, Input, Badge, Tooltip } from "antd";
-import { accessToken, formbarUrl } from "../socket";
 import { useState } from "react";
 import FormbarHeader from "../components/FormbarHeader";
 import { useSettings, getAppearAnimation } from "../main";
 import Log from "../debugLogger";
 
-const console = {
-    ...globalThis.console,
-    warn: (...args: any[]) => {
-        if (!args.length) return;
-        const [first, ...rest] = args;
-        if (typeof first === "string") {
-            const data = rest.length === 0 ? null : rest.length === 1 ? rest[0] : rest;
-            Log({ message: first, data, level: "warn" });
-            return;
-        }
-        const data = args.length === 1 ? first : args;
-        Log({ message: "Warning", data, level: "warn" });
-    },
-    error: (...args: any[]) => {
-        if (!args.length) return;
-        const [first, ...rest] = args;
-        if (typeof first === "string") {
-            const data = rest.length === 0 ? null : rest.length === 1 ? rest[0] : rest;
-            Log({ message: first, data, level: "error" });
-            return;
-        }
-        const data = args.length === 1 ? first : args;
-        Log({ message: "Error", data, level: "error" });
-    },
-};
-
-const getFetchOptions = (method = "GET", body?: any) => {
-    const opts: RequestInit = {
-        method,
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${accessToken}`,
-        },
-    };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    return opts;
-}
+// Import API functions
+import * as userApi from "../api/userApi";
+import * as classApi from "../api/classApi";
+import * as roomApi from "../api/roomApi";
+import * as digipogApi from "../api/digipogApi";
+import * as managerApi from "../api/managerApi";
+import * as notificationApi from "../api/notificationApi";
+import { getPublicKey } from "../api/systemApi";
 
 const testFuncs = [
     { name: 'Clear Console', func: () => console.clear(), hasArgs: false, category: 'System', method: 'DELETE', testedWorks: true },
@@ -208,753 +178,639 @@ export function Testing() {
 
 async function certs() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/certs`, getFetchOptions());
-        const data = await res.json();
+        const data = await getPublicKey();
         Log({ message: "Certs:", data });
     } catch (err) {
-        console.error("Error fetching certs:", err);
+        Log({ message: "Error fetching certs:", data: err, level: "error" });
     }
 }
 
 async function getMe() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/me`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getMe();
         Log({ message: "Get Me:", data });
     } catch (err) {
-        console.error("Error getting /me:", err);
+        Log({ message: "Error getting /me:", data: err, level: "error" });
     }
 }
 
 async function getMyScopes(id: string) {
+    if (!id) return Log({ message: "getMyScopes requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${id}/scopes`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getUserScopes(id);
         Log({ message: "Get Scopes:", data });
     } catch (err) {
-        console.error("Error getting scopes:", err);
+        Log({ message: "Error getting scopes:", data: err, level: "error" });
     }
 }
 
 async function getUser(inputValue: string) {
-    if (!inputValue) return console.warn('getUser requires an id');
+    if (!inputValue) return Log({ message: "getUser requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getUser(inputValue);
         Log({ message: "Get User:", data });
     } catch (err) {
-        console.error("Error getting user:", err);
+        Log({ message: "Error getting user:", data: err, level: "error" });
     }
 }
 
 async function getUserClass(inputValue: string) {
-    if (!inputValue) return console.warn('getUserClass requires an id');
+    if (!inputValue) return Log({ message: "getUserClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/class`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getUserActiveClass(inputValue);
         Log({ message: "Get User Class:", data });
     } catch (err) {
-        console.error("Error getting user class:", err);
+        Log({ message: "Error getting user class:", data: err, level: "error" });
     }
 }
 
 async function getUserClasses(inputValue: string) {
-    if (!inputValue) return console.warn('getUserClasses requires an id');
+    if (!inputValue) return Log({ message: "getUserClasses requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/classes`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getUserClasses(inputValue);
         Log({ message: "Get User Classes:", data });
     } catch (err) {
-        console.error("Error getting user classes:", err);
+        Log({ message: "Error getting user classes:", data: err, level: "error" });
     }
 }
 
 async function deleteUser(inputValue: string) {
-    if (!inputValue) return console.warn('deleteUser requires an id');
+    if (!inputValue) return Log({ message: "deleteUser requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}`, getFetchOptions('DELETE'));
-        const data = await res.json();
+        const data = await userApi.deleteUser(inputValue);
         Log({ message: "Delete User:", data });
     } catch (err) {
-        console.error("Error deleting user:", err);
+        Log({ message: "Error deleting user:", data: err, level: "error" });
     }
 }
 
-// changePerm expects input like "email|permValue" or a JSON string like {"perm":...}
 async function changePerm(inputValue: string) {
-    if (!inputValue) return console.warn('changePerm requires input like "email|perm"');
+    if (!inputValue) return Log({ message: "changePerm requires input like 'email|perm'", level: "warn" });
     let email = inputValue;
-    let body: any = {};
+    let payload: any = {};
     if (inputValue.includes('|')) {
         const [e, p] = inputValue.split('|');
         email = e.trim();
-        body = { perm: p.trim() };
+        payload = { perm: p.trim() };
     } else {
-        try { body = JSON.parse(inputValue); }
-        catch { body = { perm: inputValue }; }
+        try { payload = JSON.parse(inputValue); }
+        catch { payload = { perm: inputValue }; }
     }
 
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(email)}/perm`, getFetchOptions('PATCH', body));
-        const data = await res.json();
+        const data = await userApi.updateUserPermissions(email, payload);
         Log({ message: "Change Perm:", data });
     } catch (err) {
-        console.error("Error changing perm:", err);
+        Log({ message: "Error changing perm:", data: err, level: "error" });
     }
 }
 
 async function banUser(inputValue: string) {
-    if (!inputValue) return console.warn('banUser requires an id');
+    if (!inputValue) return Log({ message: "banUser requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/ban`, getFetchOptions('PATCH'));
-        const data = await res.json();
+        const data = await userApi.banUser(inputValue);
         Log({ message: "Ban User:", data });
     } catch (err) {
-        console.error("Error banning user:", err);
+        Log({ message: "Error banning user:", data: err, level: "error" });
     }
 }
 
 async function unbanUser(inputValue: string) {
-    if (!inputValue) return console.warn('unbanUser requires an id');
+    if (!inputValue) return Log({ message: "unbanUser requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/unban`, getFetchOptions('PATCH'));
-        const data = await res.json();
+        const data = await userApi.unbanUser(inputValue);
         Log({ message: "Unban User:", data });
     } catch (err) {
-        console.error("Error unbanning user:", err);
+        Log({ message: "Error unbanning user:", data: err, level: "error" });
     }
 }
 
 async function verifyUser(inputValue: string) {
-    if (!inputValue) return console.warn('verifyUser requires an id');
+    if (!inputValue) return Log({ message: "verifyUser requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/verify`, getFetchOptions('PATCH'));
-        const data = await res.json();
+        const data = await userApi.verifyUser(inputValue);
         Log({ message: "Verify User:", data });
     } catch (err) {
-        console.error("Error verifying user:", err);
+        Log({ message: "Error verifying user:", data: err, level: "error" });
     }
 }
 
 async function regenerateApiKey(inputValue: string) {
-    if (!inputValue) return console.warn('regenerateApiKey requires an id');
+    if (!inputValue) return Log({ message: "regenerateApiKey requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/api/regenerate`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await userApi.regenerateUserApiKey(inputValue);
         Log({ message: "Regenerate API Key:", data });
     } catch (err) {
-        console.error("Error regenerating API key:", err);
+        Log({ message: "Error regenerating API key:", data: err, level: "error" });
     }
 }
 
-// updatePin expects "id|newPin|oldPin(optional)" or JSON body with id,pin,oldPin
 async function updatePin(inputValue: string) {
-    if (!inputValue) return console.warn('updatePin requires "id|newPin|oldPin(optional)"');
+    if (!inputValue) return Log({ message: "updatePin requires 'id|newPin|oldPin(optional)'", level: "warn" });
     let id = "";
-    let body: any = {};
+    let payload: any = {};
     if (inputValue.includes('|')) {
         const [userId, newPin, oldPin] = inputValue.split('|').map(s => s.trim());
         id = userId;
-        body = { pin: newPin, ...(oldPin ? { oldPin } : {}) };
+        payload = { pin: newPin, ...(oldPin ? { oldPin } : {}) };
     } else {
         try {
             const parsed = JSON.parse(inputValue);
             id = String(parsed.id || "");
-            body = { pin: parsed.pin, ...(parsed.oldPin ? { oldPin: parsed.oldPin } : {}) };
+            payload = { pin: parsed.pin, ...(parsed.oldPin ? { oldPin: parsed.oldPin } : {}) };
         } catch {
-            return console.warn('updatePin requires "id|newPin|oldPin(optional)" or JSON');
+            return Log({ message: "updatePin requires 'id|newPin|oldPin(optional)' or JSON", level: "warn" });
         }
     }
-    if (!id || !body.pin) return console.warn('updatePin requires both id and pin');
+    if (!id || !payload.pin) return Log({ message: "updatePin requires both id and pin", level: "warn" });
 
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(id)}/pin`, getFetchOptions('PATCH', body));
-        const data = await res.json();
+        const data = await userApi.updateUserPin(id, payload);
         Log({ message: "Update PIN:", data });
     } catch (err) {
-        console.error("Error updating PIN:", err);
+        Log({ message: "Error updating PIN:", data: err, level: "error" });
     }
 }
 
 async function requestPinReset(inputValue: string) {
-    if (!inputValue) return console.warn('requestPinReset requires a user id');
+    if (!inputValue) return Log({ message: "requestPinReset requires a user id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/pin/reset`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await userApi.requestUserPinReset(inputValue);
         Log({ message: "Request PIN Reset:", data });
     } catch (err) {
-        console.error("Error requesting PIN reset:", err);
+        Log({ message: "Error requesting PIN reset:", data: err, level: "error" });
     }
 }
 
-// resetPinWithToken expects JSON: {"pin":"1234","token":"..."}
 async function resetPinWithToken(inputValue: string) {
-    if (!inputValue) return console.warn('resetPinWithToken requires JSON body');
-    let body: any;
+    if (!inputValue) return Log({ message: "resetPinWithToken requires JSON body", level: "warn" });
+    let payload: any;
     try {
-        body = JSON.parse(inputValue);
+        payload = JSON.parse(inputValue);
     } catch {
-        return console.warn('resetPinWithToken requires JSON body like {"pin":"1234","token":"..."}');
+        return Log({ message: "resetPinWithToken requires JSON body like {\"pin\":\"1234\",\"token\":\"...\"}",  level: "warn" });
     }
 
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/pin/reset`, getFetchOptions('PATCH', body));
-        const data = await res.json();
+        const data = await userApi.resetPinWithToken(payload.pin, payload.token);
         Log({ message: "Reset PIN (Token):", data });
     } catch (err) {
-        console.error("Error resetting PIN:", err);
+        Log({ message: "Error resetting PIN:", data: err, level: "error" });
     }
 }
 
 // --- Class endpoints ---
 async function getClass(inputValue: string) {
-    if (!inputValue) return console.warn('getClass requires an id');
+    if (!inputValue) return Log({ message: "getClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getClass(Number(inputValue));
         Log({ message: "Get Class:", data });
     } catch (err) {
-        console.error("Error getting class:", err);
+        Log({ message: "Error getting class:", data: err, level: "error" });
     }
 }
 
 async function getClassActive(inputValue: string) {
-    if (!inputValue) return console.warn('getClassActive requires an id');
+    if (!inputValue) return Log({ message: "getClassActive requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/active`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.checkActiveClass(Number(inputValue));
         Log({ message: "Get Class Active:", data });
     } catch (err) {
-        console.error("Error getting class active:", err);
+        Log({ message: "Error getting class active:", data: err, level: "error" });
     }
 }
 
 async function getClassBanned(inputValue: string) {
-    if (!inputValue) return console.warn('getClassBanned requires an id');
+    if (!inputValue) return Log({ message: "getClassBanned requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/banned`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getBannedClassStudents(Number(inputValue));
         Log({ message: "Get Class Banned:", data });
     } catch (err) {
-        console.error("Error getting class banned:", err);
+        Log({ message: "Error getting class banned:", data: err, level: "error" });
     }
 }
 
 async function getClassLinks(inputValue: string) {
-    if (!inputValue) return console.warn('getClassLinks requires an id');
+    if (!inputValue) return Log({ message: "getClassLinks requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/links`, getFetchOptions());
-        const data = await res.json();
+        const data = await roomApi.getRoomLinks(Number(inputValue));
         Log({ message: "Get Class Links:", data });
     } catch (err) {
-        console.error("Error getting class links:", err);
+        Log({ message: "Error getting class links:", data: err, level: "error" });
     }
 }
 
 async function getClassPermissions(inputValue: string) {
-    if (!inputValue) return console.warn('getClassPermissions requires an id');
+    if (!inputValue) return Log({ message: "getClassPermissions requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/permissions`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getClassPermissions(Number(inputValue));
         Log({ message: "Get Class Permissions:", data });
     } catch (err) {
-        console.error("Error getting class permissions:", err);
+        Log({ message: "Error getting class permissions:", data: err, level: "error" });
     }
 }
 
 async function getClassStudents(inputValue: string) {
-    if (!inputValue) return console.warn('getClassStudents requires an id');
+    if (!inputValue) return Log({ message: "getClassStudents requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/students`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getClassStudents(Number(inputValue));
         Log({ message: "Get Class Students:", data });
     } catch (err) {
-        console.error("Error getting class students:", err);
+        Log({ message: "Error getting class students:", data: err, level: "error" });
     }
 }
 
 async function createClass(inputValue: string) {
-    if (!inputValue) return console.warn('createClass requires a body (JSON or class name)');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch { body = { name: inputValue }; }
+    if (!inputValue) return Log({ message: "createClass requires a body (JSON or class name)", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(inputValue); } catch { payload = { name: inputValue }; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/create`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.createClass(payload);
         Log({ message: "Create Class:", data });
     } catch (err) {
-        console.error("Error creating class:", err);
+        Log({ message: "Error creating class:", data: err, level: "error" });
     }
 }
 
 async function endClass(inputValue: string) {
-    if (!inputValue) return console.warn('endClass requires an id');
+    if (!inputValue) return Log({ message: "endClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/end`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.endClassSession(Number(inputValue));
         Log({ message: "End Class:", data });
     } catch (err) {
-        console.error("Error ending class:", err);
+        Log({ message: "Error ending class:", data: err, level: "error" });
     }
 }
 
 async function joinClass(inputValue: string) {
-    if (!inputValue) return console.warn('joinClass requires an id');
+    if (!inputValue) return Log({ message: "joinClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/join`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.joinClassSession(Number(inputValue));
         Log({ message: "Join Class:", data });
     } catch (err) {
-        console.error("Error joining class:", err);
+        Log({ message: "Error joining class:", data: err, level: "error" });
     }
 }
 
 async function leaveClass(inputValue: string) {
-    if (!inputValue) return console.warn('leaveClass requires an id');
+    if (!inputValue) return Log({ message: "leaveClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/leave`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.leaveClassSession(Number(inputValue));
         Log({ message: "Leave Class:", data });
     } catch (err) {
-        console.error("Error leaving class:", err);
+        Log({ message: "Error leaving class:", data: err, level: "error" });
     }
 }
 
 async function startClass(inputValue: string) {
-    if (!inputValue) return console.warn('startClass requires an id');
+    if (!inputValue) return Log({ message: "startClass requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/start`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.startClassSession(Number(inputValue));
         Log({ message: "Start Class:", data });
     } catch (err) {
-        console.error("Error starting class:", err);
+        Log({ message: "Error starting class:", data: err, level: "error" });
     }
 }
 
 // --- Class - Polls ---
 async function getClassPolls(inputValue: string) {
-    if (!inputValue) return console.warn('getClassPolls requires an id');
+    if (!inputValue) return Log({ message: "getClassPolls requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getPolls(Number(inputValue));
         Log({ message: 'Get Class Polls:', data });
-    } catch (err) { console.error('Error getting class polls:', err); }
+    } catch (err) { Log({ message: 'Error getting class polls:', data: err, level: "error" }); }
 }
 
 async function getClassPollCurrent(inputValue: string) {
-    if (!inputValue) return console.warn('getClassPollCurrent requires an id');
+    if (!inputValue) return Log({ message: "getClassPollCurrent requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls/current`, getFetchOptions());
-        const data = await res.json();
+        const data = await classApi.getCurrentPoll(Number(inputValue));
         Log({ message: 'Get Class Current Poll:', data });
-    } catch (err) { console.error('Error getting current poll:', err); }
+    } catch (err) { Log({ message: 'Error getting current poll:', data: err, level: "error" }); }
 }
 
 async function clearClassPolls(inputValue: string) {
-    if (!inputValue) return console.warn('clearClassPolls requires an id');
+    if (!inputValue) return Log({ message: "clearClassPolls requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls/clear`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.clearCurrentPoll(Number(inputValue));
         Log({ message: 'Clear Class Polls:', data });
-    } catch (err) { console.error('Error clearing polls:', err); }
+    } catch (err) { Log({ message: 'Error clearing polls:', data: err, level: "error" }); }
 }
 
 async function createClassPoll(inputValue: string, bodyValue: string) {
-    if (!inputValue) return console.warn('createClassPoll requires body or name');
-    let body: any;
-    try { body = JSON.parse(bodyValue); } catch (err) { body = bodyValue; }
+    if (!inputValue) return Log({ message: "createClassPoll requires body or name", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(bodyValue); } catch (err) { payload = bodyValue; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls/create`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.createPoll(Number(inputValue), payload);
         Log({ message: 'Create Class Poll:', data });
-    } catch (err) { console.error('Error creating poll:', err); }
+    } catch (err) { Log({ message: 'Error creating poll:', data: err, level: "error" }); }
 }
 
 async function endClassPoll(inputValue: string) {
-    if (!inputValue) return console.warn('endClassPoll requires an id');
+    if (!inputValue) return Log({ message: "endClassPoll requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls/end`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.endPoll(Number(inputValue));
         Log({ message: 'End Class Poll:', data });
-    } catch (err) { console.error('Error ending poll:', err); }
+    } catch (err) { Log({ message: 'Error ending poll:', data: err, level: "error" }); }
 }
 
 async function respondClassPoll(inputValue: string, bodyValue: string) {
-    if (!inputValue) return console.warn('respondClassPoll requires body');
-    let body: any;
-    try { body = JSON.parse(bodyValue); } catch (err) { body = bodyValue; }
+    if (!inputValue) return Log({ message: "respondClassPoll requires body", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(bodyValue); } catch (err) { payload = bodyValue; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/polls/response`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.submitPollResponse(Number(inputValue), payload);
         Log({ message: 'Respond Class Poll:', data });
-    } catch (err) { console.error('Error responding to poll:', err); }
+    } catch (err) { Log({ message: 'Error responding to poll:', data: err, level: "error" }); }
 }
 
 // --- Class - Breaks ---
-async function endOwnBreak(inputValue: string, bodyValue: string) {
-    if (!inputValue) return console.warn('endOwnBreak requires an id');
-    let body: any;
-    try { body = JSON.parse(bodyValue); } catch (err) { body = bodyValue; }
+async function endOwnBreak(inputValue: string) {
+    if (!inputValue) return Log({ message: "endOwnBreak requires an id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/break/end`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.endBreak(Number(inputValue));
         Log({ message: 'End Own Break:', data });
-    } catch (err) { console.error('Error ending own break:', err); }
+    } catch (err) { Log({ message: 'Error ending own break:', data: err, level: "error" }); }
 }
 
 async function requestBreak(inputValue: string, bodyValue: string) {
-    if (!inputValue) return console.warn('requestBreak requires an id');
-    let body: any;
-    try { body = JSON.parse(bodyValue); } catch (err) { body = bodyValue; }
+    if (!inputValue) return Log({ message: "requestBreak requires an id", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(bodyValue); } catch (err) { payload = bodyValue; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(inputValue)}/break/request`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.requestBreak(Number(inputValue), payload?.reason || "");
         Log({ message: 'Request Break:', data });
-    } catch (err) { console.error('Error requesting break:', err); }
+    } catch (err) { Log({ message: 'Error requesting break:', data: err, level: "error" }); }
 }
 
 async function approveBreak(inputValue: string) {
-    if (!inputValue) return console.warn('approveBreak requires "classId|userId"');
+    if (!inputValue) return Log({ message: "approveBreak requires 'classId|userId'", level: "warn" });
     const [classId, userId] = inputValue.split('|').map(s => s.trim());
-    if (!classId || !userId) return console.warn('approveBreak requires "classId|userId"');
+    if (!classId || !userId) return Log({ message: "approveBreak requires 'classId|userId'", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(userId)}/break/approve`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.approveStudentBreak(Number(classId), userId);
         Log({ message: 'Approve Break:', data });
-    } catch (err) { console.error('Error approving break:', err); }
+    } catch (err) { Log({ message: 'Error approving break:', data: err, level: "error" }); }
 }
 
 async function denyBreak(inputValue: string) {
-    if (!inputValue) return console.warn('denyBreak requires "classId|userId"');
+    if (!inputValue) return Log({ message: "denyBreak requires 'classId|userId'", level: "warn" });
     const [classId, userId] = inputValue.split('|').map(s => s.trim());
-    if (!classId || !userId) return console.warn('denyBreak requires "classId|userId"');
+    if (!classId || !userId) return Log({ message: "denyBreak requires 'classId|userId'", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(userId)}/break/deny`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await classApi.denyStudentBreak(Number(classId), userId);
         Log({ message: 'Deny Break:', data });
-    } catch (err) { console.error('Error denying break:', err); }
+    } catch (err) { Log({ message: 'Error denying break:', data: err, level: "error" }); }
 }
 
 // --- Class - Help ---
 async function deleteHelpRequest(inputValue: string) {
-    if (!inputValue) return console.warn('deleteHelpRequest requires "classId|userId"');
+    if (!inputValue) return Log({ message: "deleteHelpRequest requires 'classId|userId'", level: "warn" });
     const [classId, userId] = inputValue.split('|').map(s => s.trim());
-    if (!classId || !userId) return console.warn('deleteHelpRequest requires "classId|userId"');
+    if (!classId || !userId) return Log({ message: "deleteHelpRequest requires 'classId|userId'", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(userId)}/help`, getFetchOptions('DELETE'));
-        const data = await res.json();
+        const data = await classApi.deleteHelpRequest(Number(classId), userId);
         Log({ message: 'Delete Help Request:', data });
-    } catch (err) { console.error('Error deleting help request:', err); }
+    } catch (err) { Log({ message: 'Error deleting help request:', data: err, level: "error" }); }
 }
 
 async function requestClassHelp(inputValue: string) {
-    if (!inputValue) return console.warn('requestClassHelp requires an id or body');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch { body = { classId: inputValue }; }
+    if (!inputValue) return Log({ message: "requestClassHelp requires an id or body", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(inputValue); } catch { payload = { classId: inputValue }; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/class/${encodeURIComponent(body.classId || body.id || '')}/help/request`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await classApi.requestHelp(Number(payload.classId || payload.id || inputValue));
         Log({ message: 'Request Class Help:', data });
-    } catch (err) { console.error('Error requesting help:', err); }
+    } catch (err) { Log({ message: 'Error requesting help:', data: err, level: "error" }); }
 }
 
 // --- Room ---
 async function leaveRoom(inputValue: string) {
-    if (!inputValue) return console.warn('leaveRoom requires a room id');
+    if (!inputValue) return Log({ message: "leaveRoom requires a room id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(inputValue)}/leave`, getFetchOptions('DELETE'));
-        const data = await res.json();
+        const data = await roomApi.leaveRoom(Number(inputValue));
         Log({ message: 'Leave Room:', data });
-    } catch (err) { console.error('Error leaving room:', err); }
+    } catch (err) { Log({ message: 'Error leaving room:', data: err, level: "error" }); }
 }
 
 async function getRoomTags() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/tags`, getFetchOptions());
-        const data = await res.json();
+        const data = await roomApi.getRoomTags(0); // Adjust as needed
         Log({ message: 'Get Room Tags:', data });
-    } catch (err) { console.error('Error getting room tags:', err); }
+    } catch (err) { Log({ message: 'Error getting room tags:', data: err, level: "error" }); }
 }
 
 async function joinRoomByCode(inputValue: string) {
-    if (!inputValue) return console.warn('joinRoomByCode requires a code or JSON with {code}');
+    if (!inputValue) return Log({ message: "joinRoomByCode requires a code or JSON with {code}", level: "warn" });
     let code = inputValue;
     try {
         const parsed = JSON.parse(inputValue); if (parsed.code) code = parsed.code;
     } catch {}
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(code)}/join`, getFetchOptions('POST'));
-        const data = await res.json();
+        const data = await roomApi.joinRoomByCode(code);
         Log({ message: 'Join Room By Code:', data });
-    } catch (err) { console.error('Error joining room by code:', err); }
+    } catch (err) { Log({ message: 'Error joining room by code:', data: err, level: "error" }); }
 }
 
 async function setRoomTags(inputValue: string) {
-    if (!inputValue) return console.warn('setRoomTags requires a body (JSON) or comma-separated tags');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch { body = { tags: inputValue.split(',').map(s => s.trim()) }; }
+    if (!inputValue) return Log({ message: "setRoomTags requires a body (JSON) or comma-separated tags", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(inputValue); } catch { payload = { tags: inputValue.split(',').map(s => s.trim()) }; }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/tags`, getFetchOptions('PUT', body));
-        const data = await res.json();
+        const data = await roomApi.setRoomTags(0, payload.tags || []); // Adjust classId as needed
         Log({ message: 'Set Room Tags:', data });
-    } catch (err) { console.error('Error setting room tags:', err); }
+    } catch (err) { Log({ message: 'Error setting room tags:', data: err, level: "error" }); }
 }
 
 // --- Room - Links ---
 async function removeRoomLink(inputValue: string) {
-    if (!inputValue) return console.warn('removeRoomLink requires "roomId|linkId" or roomId');
+    if (!inputValue) return Log({ message: "removeRoomLink requires 'roomId|linkId' or roomId", level: "warn" });
     if (inputValue.includes('|')) {
         const [roomId, linkId] = inputValue.split('|').map(s => s.trim());
         try {
-            const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(roomId)}/links/${encodeURIComponent(linkId)}`, getFetchOptions('DELETE'));
-            const data = await res.json();
+            const data = await roomApi.deleteRoomLink(Number(roomId), linkId);
             Log({ message: 'Remove Room Link (by id):', data });
-        } catch (err) { console.error('Error removing room link:', err); }
+        } catch (err) { Log({ message: 'Error removing room link:', data: err, level: "error" }); }
     } else {
         try {
-            const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(inputValue)}/links`, getFetchOptions('DELETE'));
-            const data = await res.json();
+            const data = await roomApi.deleteRoom(Number(inputValue));
             Log({ message: 'Remove Room Link:', data });
-        } catch (err) { console.error('Error removing room link:', err); }
+        } catch (err) { Log({ message: 'Error removing room link:', data: err, level: "error" }); }
     }
 }
 
 async function getRoomLinks(inputValue: string) {
-    if (!inputValue) return console.warn('getRoomLinks requires a room id');
+    if (!inputValue) return Log({ message: "getRoomLinks requires a room id", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(inputValue)}/links`, getFetchOptions());
-        const data = await res.json();
+        const data = await roomApi.getRoomLinks(Number(inputValue));
         Log({ message: 'Get Room Links:', data });
-    } catch (err) { console.error('Error getting room links:', err); }
+    } catch (err) { Log({ message: 'Error getting room links:', data: err, level: "error" }); }
 }
 
 async function addRoomLink(inputValue: string) {
-    if (!inputValue) return console.warn('addRoomLink requires "roomId|json" or JSON with classId');
-    let body: any = {};
+    if (!inputValue) return Log({ message: "addRoomLink requires 'roomId|json' or JSON with classId", level: "warn" });
+    let payload: any = {};
     let roomId = '';
     if (inputValue.includes('|')) {
-        const [r, payload] = inputValue.split('|', 2);
+        const [r, jsonPart] = inputValue.split('|', 2);
         roomId = r.trim();
-        try { body = JSON.parse(payload); } catch { body = { url: payload }; }
+        try { payload = JSON.parse(jsonPart); } catch { payload = { url: jsonPart }; }
     } else {
-        try { body = JSON.parse(inputValue); roomId = body.roomId || body.classId || ''; } catch { return console.warn('addRoomLink: provide roomId|json or valid JSON'); }
+        try { payload = JSON.parse(inputValue); roomId = payload.roomId || payload.classId || ''; } catch { return Log({ message: "addRoomLink: provide roomId|json or valid JSON", level: "warn" }); }
     }
-    if (!roomId) return console.warn('addRoomLink requires roomId');
+    if (!roomId) return Log({ message: "addRoomLink requires roomId", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(roomId)}/links/add`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await roomApi.createRoomLink(Number(roomId), payload);
         Log({ message: 'Add Room Link:', data });
-    } catch (err) { console.error('Error adding room link:', err); }
+    } catch (err) { Log({ message: 'Error adding room link:', data: err, level: "error" }); }
 }
 
 async function updateRoomLink(inputValue: string) {
-    if (!inputValue) return console.warn('updateRoomLink requires "roomId|json" or JSON with classId');
-    let body: any = {};
+    if (!inputValue) return Log({ message: "updateRoomLink requires 'roomId|json' or JSON with classId", level: "warn" });
+    let payload: any = {};
     let roomId = '';
     if (inputValue.includes('|')) {
-        const [r, payload] = inputValue.split('|', 2);
+        const [r, jsonPart] = inputValue.split('|', 2);
         roomId = r.trim();
-        try { body = JSON.parse(payload); } catch { body = { data: payload }; }
+        try { payload = JSON.parse(jsonPart); } catch { payload = { data: jsonPart }; }
     } else {
-        try { body = JSON.parse(inputValue); roomId = body.roomId || body.classId || ''; } catch { return console.warn('updateRoomLink: provide roomId|json or valid JSON'); }
+        try { payload = JSON.parse(inputValue); roomId = payload.roomId || payload.classId || ''; } catch { return Log({ message: "updateRoomLink: provide roomId|json or valid JSON", level: "warn" }); }
     }
-    if (!roomId) return console.warn('updateRoomLink requires roomId');
+    if (!roomId) return Log({ message: "updateRoomLink requires roomId", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/room/${encodeURIComponent(roomId)}/links`, getFetchOptions('PUT', body));
-        const data = await res.json();
+        const data = await roomApi.updateRoomLink(Number(roomId), payload);
         Log({ message: 'Update Room Link:', data });
-    } catch (err) { console.error('Error updating room link:', err); }
+    } catch (err) { Log({ message: 'Error updating room link:', data: err, level: "error" }); }
 }
 
 // --- Digipogs ---
 async function awardDigipogs(inputValue: string) {
-    if (!inputValue) return console.warn('awardDigipogs requires body JSON or "userId|amount"');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch {
+    if (!inputValue) return Log({ message: "awardDigipogs requires body JSON or 'userId|amount'", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(inputValue); } catch {
         const [userId, amount] = inputValue.split('|').map(s => s.trim());
-        body = { userId, amount: Number(amount) || 0 };
+        payload = { studentId: userId, amount: Number(amount) || 0 };
     }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/digipogs/award`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await digipogApi.awardDigipogs(payload);
         Log({ message: 'Award Digipogs:', data });
-    } catch (err) { console.error('Error awarding digipogs:', err); }
+    } catch (err) { Log({ message: 'Error awarding digipogs:', data: err, level: "error" }); }
 }
 
 async function transferDigipogs(inputValue: string, bodyValue: string) {
-    if (!inputValue && !bodyValue) return console.warn('transferDigipogs requires body JSON or "toUserId|amount"');
-    let body: any;
-    try { body = JSON.parse(bodyValue); } catch {
+    if (!inputValue && !bodyValue) return Log({ message: "transferDigipogs requires body JSON or 'toUserId|amount'", level: "warn" });
+    let payload: any;
+    try { payload = JSON.parse(bodyValue); } catch {
         const [toUserId, amount] = inputValue.split('|').map(s => s.trim());
-        body = { toUserId, amount: Number(amount) || 0 };
+        payload = { to: toUserId, amount: Number(amount) || 0, pin: "", reason: "" };
     }
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/digipogs/transfer`, getFetchOptions('POST', body));
-        const data = await res.json();
+        const data = await digipogApi.transferDigipogs(payload);
         Log({ message: 'Transfer Digipogs:', data });
-    } catch (err) { console.error('Error transferring digipogs:', err); }
+    } catch (err) { Log({ message: 'Error transferring digipogs:', data: err, level: "error" }); }
 }
 
 // --- IP Management ---
 async function removeIP(inputValue: string) {
-    if (!inputValue) return console.warn('removeIP requires "type|id"');
+    if (!inputValue) return Log({ message: "removeIP requires 'type|id'", level: "warn" });
     const [type, id] = inputValue.split('|').map(s => s.trim());
-    if (!type || !id) return console.warn('removeIP requires "type|id"');
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/ip/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, getFetchOptions('DELETE'));
-        const data = await res.json();
-        Log({ message: 'Remove IP:', data });
-    } catch (err) { console.error('Error removing IP:', err); }
+    if (!type || !id) return Log({ message: "removeIP requires 'type|id'", level: "warn" });
+    Log({ message: 'Note: IP management functions not yet implemented in API', level: "warn" });
 }
 
 async function getIPList(inputValue: string) {
-    if (!inputValue) return console.warn('getIPList requires a type');
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/ip/${encodeURIComponent(inputValue)}`, getFetchOptions());
-        const data = await res.json();
-        Log({ message: 'Get IP List:', data });
-    } catch (err) { console.error('Error getting IP list:', err); }
+    if (!inputValue) return Log({ message: "getIPList requires a type", level: "warn" });
+    Log({ message: 'Note: IP management functions not yet implemented in API', level: "warn" });
 }
 
 async function toggleIP(inputValue: string) {
-    if (!inputValue) return console.warn('toggleIP requires a type or JSON');
-    let type = inputValue;
-    try { const p = JSON.parse(inputValue); if (p.type) type = p.type; } catch {}
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/ip/${encodeURIComponent(type)}/toggle`, getFetchOptions('POST'));
-        const data = await res.json();
-        Log({ message: 'Toggle IP:', data });
-    } catch (err) { console.error('Error toggling IP:', err); }
+    if (!inputValue) return Log({ message: "toggleIP requires a type or JSON", level: "warn" });
+    Log({ message: 'Note: IP management functions not yet implemented in API', level: "warn" });
 }
 
 async function updateIP(inputValue: string) {
-    if (!inputValue) return console.warn('updateIP requires "type|id|json" or JSON with type and id');
-    let type = '' as string;
-    let id = '' as string;
-    let body: any = {};
-    if (inputValue.includes('|')) {
-        const [t, i, payload] = inputValue.split('|', 3).map(s => s.trim());
-        type = t; id = i;
-        try { body = JSON.parse(payload); } catch { body = { data: payload }; }
-    } else {
-        try { const p = JSON.parse(inputValue); type = p.type; id = p.id; body = p; } catch { return console.warn('updateIP: provide type|id|json or JSON with type and id'); }
-    }
-    if (!type || !id) return console.warn('updateIP requires type and id');
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/ip/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, getFetchOptions('PUT', body));
-        const data = await res.json();
-        Log({ message: 'Update IP:', data });
-    } catch (err) { console.error('Error updating IP:', err); }
+    if (!inputValue) return Log({ message: "updateIP requires 'type|id|json' or JSON with type and id", level: "warn" });
+    Log({ message: 'Note: IP management functions not yet implemented in API', level: "warn" });
 }
 
 // --- Manager / Logs / Student / OAuth / User / Pools ---
 async function getManager() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/manager`, getFetchOptions());
-        const data = await res.json();
+        const data = await managerApi.getManagerData();
         Log({ message: 'Get Manager:', data });
-    } catch (err) { console.error('Error getting manager:', err); }
+    } catch (err) { Log({ message: 'Error getting manager:', data: err, level: "error" }); }
 }
 
 async function getLogs() {
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/logs`, getFetchOptions());
-        const data = await res.json();
-        Log({ message: 'Get Logs:', data });
-    } catch (err) { console.error('Error getting logs:', err); }
+    Log({ message: 'Note: Log functions not yet implemented in API', level: "warn" });
 }
 
 async function getLogFile(inputValue: string) {
-    if (!inputValue) return console.warn('getLogFile requires a log name');
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/logs/${encodeURIComponent(inputValue)}`, getFetchOptions());
-        const data = await res.text();
-        Log({ message: 'Get Log File:', data });
-    } catch (err) { console.error('Error getting log file:', err); }
+    if (!inputValue) return Log({ message: "getLogFile requires a log name", level: "warn" });
+    Log({ message: 'Note: Log functions not yet implemented in API', level: "warn" });
 }
 
 async function oauthAuthorize() {
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/oauth/authorize`, getFetchOptions());
-        const data = await res.json();
-        Log({ message: 'OAuth Authorize:', data });
-    } catch (err) { console.error('Error calling oauth authorize:', err); }
+    Log({ message: 'Note: OAuth functions not yet implemented in API', level: "warn" });
 }
 
 async function oauthRevoke(inputValue: string) {
-    if (!inputValue) return console.warn('oauthRevoke requires body (token or json)');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch { body = { token: inputValue }; }
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/oauth/revoke`, getFetchOptions('POST', body));
-        const data = await res.json();
-        Log({ message: 'OAuth Revoke:', data });
-    } catch (err) { console.error('Error revoking oauth token:', err); }
+    if (!inputValue) return Log({ message: "oauthRevoke requires body (token or json)", level: "warn" });
+    Log({ message: 'Note: OAuth functions not yet implemented in API', level: "warn" });
 }
 
 async function oauthToken(inputValue: string) {
-    if (!inputValue) return console.warn('oauthToken requires body');
-    let body: any;
-    try { body = JSON.parse(inputValue); } catch { return console.warn('oauthToken requires JSON body'); }
-    try {
-        const res = await fetch(`${formbarUrl}/api/v1/oauth/token`, getFetchOptions('POST', body));
-        const data = await res.json();
-        Log({ message: 'OAuth Token:', data });
-    } catch (err) { console.error('Error requesting oauth token:', err); }
+    if (!inputValue) return Log({ message: "oauthToken requires body", level: "warn" });
+    Log({ message: 'Note: OAuth functions not yet implemented in API', level: "warn" });
 }
 
 async function getUserTransactions(inputValue: string) {
-    if (!inputValue) return console.warn('getUserTransactions requires a userId');
+    if (!inputValue) return Log({ message: "getUserTransactions requires a userId", level: "warn" });
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/${encodeURIComponent(inputValue)}/transactions`, getFetchOptions());
-        const data = await res.json();
+        const data = await userApi.getUserTransactions(inputValue);
         Log({ message: 'Get User Transactions:', data });
-    } catch (err) { console.error('Error getting user transactions:', err); }
+    } catch (err) { Log({ message: 'Error getting user transactions:', data: err, level: "error" }); }
 }
 
 async function getUserPools() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/user/pools`, getFetchOptions());
-        const data = await res.json();
-        Log({ message: 'Get User Pools:', data });
-    } catch (err) { console.error('Error getting user pools:', err); }
+        // Placeholder - needs API function
+        Log({ message: 'Get User Pools - endpoint not yet defined', level: "warn" });
+    } catch (err) { Log({ message: 'Error getting user pools:', data: err, level: "error" }); }
 }
 
 async function getNotifications() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/notifications`, getFetchOptions());
-        const data = await res.json();
+        const data = await notificationApi.getNotifications();
         Log({ message: 'Get Notifications:', data });
-    } catch (err) { console.error('Error getting notifications:', err); }
+    } catch (err) { Log({ message: 'Error getting notifications:', data: err, level: "error" }); }
 }
 
 async function getNotifByID(notifId: string) {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/notifications/${encodeURIComponent(notifId)}`, getFetchOptions());
-        const data = await res.json();
+        const data = await notificationApi.getNotificationById(notifId);
         Log({ message: 'Get Notification by ID:', data });
-    } catch (err) { console.error('Error getting notification by ID:', err); }
+    } catch (err) { Log({ message: 'Error getting notification by ID:', data: err, level: "error" }); }
 }
 
 async function markNotifAsRead(notifId: string) {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/notifications/${encodeURIComponent(notifId)}/mark-read`, getFetchOptions("POST", { read: true }));
-        const data = await res.json();
+        const data = await notificationApi.markNotificationAsRead(notifId);
         Log({ message: 'Mark Notification as Read:', data });
-    } catch (err) { console.error('Error marking notification as read:', err); }
+    } catch (err) { Log({ message: 'Error marking notification as read:', data: err, level: "error" }); }
 }
 
 async function deleteAllNotif() {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/notifications`, getFetchOptions("DELETE"));
-        const data = await res.json();
+        const data = await notificationApi.deleteAllNotifications();
         Log({ message: 'Delete Notifications:', data });
-    } catch (err) { console.error('Error deleting notifications:', err); }
+    } catch (err) { Log({ message: 'Error deleting notifications:', data: err, level: "error" }); }
 }
 
 async function deleteNotifByID(notifId: string) {
     try {
-        const res = await fetch(`${formbarUrl}/api/v1/notifications/${encodeURIComponent(notifId)}`, getFetchOptions("DELETE"));
-        const data = await res.json();
+        const data = await notificationApi.deleteNotificationById(notifId);
         Log({ message: 'Delete Notification by ID:', data });
-    } catch (err) { console.error('Error deleting notification by ID:', err); }
+    } catch (err) { Log({ message: 'Error deleting notification by ID:', data: err, level: "error" }); }
 }

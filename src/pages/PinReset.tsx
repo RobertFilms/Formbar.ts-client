@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import FormbarHeader from "../components/FormbarHeader";
 import { formbarUrl } from "../socket";
+import { resetPinWithToken } from "../api/userApi";
 
 const { Text, Title } = Typography;
 
@@ -37,17 +38,10 @@ export default function PinResetPage() {
 
 		setLoading(true);
 		try {
-			const response = await fetch(`${formbarUrl}/api/v1/user/pin/reset`, {
-				method: "PATCH",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ pin, token }),
-			});
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+            const response = await resetPinWithToken(pin, token);
+			if (!response.ok || response?.error) {
 				throw new Error(
-					payload?.error?.message || payload?.error || "PIN reset failed.",
+					response?.error?.message || response?.error || "PIN reset failed.",
 				);
 			}
 

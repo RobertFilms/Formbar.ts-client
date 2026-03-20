@@ -20,6 +20,8 @@ import { formbarUrl } from "../socket";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { useTheme } from "../main";
+import { authLogin, registerUser, setRefreshToken } from "../api/authApi";
+import { getServerConfig } from "../api/systemApi";
 
 export default function LoginPage() {
 	const { isDark } = useTheme();
@@ -66,35 +68,19 @@ export default function LoginPage() {
 			case "Login":
 				Log({ message: "Logging in", data: { email, password } });
 
-				const formData = new URLSearchParams();
-				formData.append("email", email);
-				formData.append("password", password);
-				formData.append("loginType", "login");
+				// Store credentials in sessionStorage (cleared on browser close)
+				sessionStorage.setItem("formbarLoginCreds", JSON.stringify([email, password]));
 
-				localStorage.setItem("formbarLoginData", formData.toString());
-
-				const storedLoginData = localStorage.getItem("formbarLoginData");
-				Log({ message: "Stored login data", data: storedLoginData });
-
-				const loginResponse = await fetch(
-					`${formbarUrl}/api/v1/auth/login`,
-					{
-						method: "POST",
-						headers: { "Content-Type": "application/x-www-form-urlencoded" },
-						body: formData.toString(),
-					},
-				);
+				const loginResponse = await authLogin(email, password);
 				if (!loginResponse.ok) {
-					const errorData = await loginResponse.json();
 					showErrorNotification(
-						errorData.error.message || "Login failed",
+						loginResponse.error.message || "Login failed",
 					);
 					throw new Error("Login failed");
 				}
-				const loginData = await loginResponse.json();
-				const { data } = loginData;
+				const { data } = loginResponse;
 				let { accessToken: loginAccessToken, refreshToken: loginRefreshToken, legacyToken: loginLegacyToken } = data;
-				Log({ message: "Login successful", data: loginData });
+				Log({ message: "Login successful", data: loginResponse });
 
 				// If we were sent here by a third-party app redirect back to it.
 				// On the /oauth path use the legacy token (includes permissions) so that
@@ -111,6 +97,7 @@ export default function LoginPage() {
 
 				// Establish the socket session. onConnect in main.tsx will fetch
 				// user data and navigate away from the login page.
+				setRefreshToken(loginRefreshToken);
 				socketLogin(loginRefreshToken);
 				break;
 			case "Sign Up":
@@ -136,33 +123,22 @@ export default function LoginPage() {
 						level: "error",
 					});
 
-				const signupResponse = await fetch(
-					`${formbarUrl}/api/v1/auth/register`,
-					{
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ email, password, displayName }),
-					},
-				);
+				const signupResponse = await registerUser({ email, password, displayName });
 				if (!signupResponse.ok) {
-					const errorData = await signupResponse.json();
 					showErrorNotification(
-						errorData.error.message || "Signup failed",
+						signupResponse.error.message || "Signup failed",
 					);
-					throw new Error("Signup failed", errorData.error.message);
+					throw new Error("Signup failed", signupResponse.error.message);
 				}
-				const signUpData = await signupResponse.json();
-				const { data: signupData } = signUpData;
-				Log({ message: "Signup successful", data: signUpData });
+				const { data: signupData } = signupResponse;
+				Log({ message: "Signup successful", data: signupResponse });
 
-				const signUpformData = new URLSearchParams();
-				signUpformData.append("email", email);
-				signUpformData.append("password", password);
-				signUpformData.append("loginType", "signup");
-				localStorage.setItem("formbarLoginData", signUpformData.toString());
+				// Store credentials in sessionStorage (cleared on browser close)
+				sessionStorage.setItem("formbarLoginCreds", JSON.stringify([email, password]));
 
 				// Establish the socket session. onConnect in main.tsx will fetch
 				// user data and navigate away from the login page.
+				setRefreshToken(signupData.refreshToken);
 				socketLogin(signupData.refreshToken);
 				break;
 
@@ -184,8 +160,7 @@ export default function LoginPage() {
 
 	// Fetch server config to determine which login methods are available
 	useEffect(() => {
-		fetch(`${formbarUrl}/api/v1/config`)
-			.then((r) => r.json())
+		getServerConfig()
 			.then((payload) => {
 				setGoogleOauthEnabled(Boolean(payload?.data?.googleOauthEnabled));
 			})

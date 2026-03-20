@@ -10,6 +10,7 @@ import { themeColors } from "../../themes/ThemeConfig";
 import { accessToken, formbarUrl, socket } from "../socket";
 import { useState } from "react";
 import SettingsModal from "./SettingsModal";
+import { leaveClassSession } from "../api/classApi";
 
 export default function FormbarHeader() {
 	const { isDark } = useTheme();
@@ -82,13 +83,7 @@ export default function FormbarHeader() {
 			return;
 		}
 
-		fetch(`${formbarUrl}/api/v1/class/${userData?.activeClass}/leave`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		})
-			.then((res) => res.json())
+		leaveClassSession(userData.activeClass)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Left class", data });

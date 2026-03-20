@@ -23,6 +23,8 @@ import * as IonIcons from "ionicons/icons";
 import { Activity, useEffect, useState } from "react";
 import { accessToken, formbarUrl } from "../socket";
 import { useSettings, getAppearAnimation, useMobileDetect } from "../main";
+import { banUser, deleteUser, unbanUser, verifyUser } from "../api/userApi";
+import { getManagerData } from "../api/managerApi";
 
 type ManagerPanelUser = {
 	id: number | string;
@@ -69,25 +71,10 @@ export default function ManagerPanel() {
 		if (!accessToken) return;
 
 		const offset = (currentPage - 1) * pageSize;
-		const params = new URLSearchParams({
-			limit: String(pageSize),
-			offset: String(offset),
-			sortBy,
-		});
-		if (debouncedSearchQuery) {
-			params.set("search", debouncedSearchQuery);
-		}
 
 		const abortController = new AbortController();
 
-		fetch(`${formbarUrl}/api/v1/manager/?${params.toString()}`, {
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-			signal: abortController.signal,
-		})
-			.then((res) => res.json())
+		getManagerData(offset, pageSize, sortBy)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Manager panel data", data });
@@ -139,13 +126,7 @@ export default function ManagerPanel() {
 	}, [users, initialLoad]);
 
 	function handleVerify(userId: number | string) {
-		fetch(`${formbarUrl}/api/v1/user/${userId}/verify`, {
-			method: "PATCH",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		})
-			.then((res) => res.json())
+		verifyUser(String(userId))
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "User verified", data });
@@ -177,22 +158,13 @@ export default function ManagerPanel() {
             content: `${userLabel} will be unable to log in and removed from all classes.`,
             okCancel: true,
             onOk: () => {
-                fetch(`${formbarUrl}/api/v1/user/${userId}`,
-                    {
-                        method: "DELETE",
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`
-                        }
-                    }
-                )
+                deleteUser(String(userId))
                 .then(async (res) => {
-                    let resp: any = null;
-                    try { resp = await res.json(); } catch { resp = null; }
                     if (!res.ok) {
-                        Log({ message: "Failed to delete user:", data: resp, level: "error" });
+                        Log({ message: "Failed to delete user:", data: res, level: "error" });
                         return;
                     }
-                    if (resp?.success) {
+                    if (res?.success) {
                         setIsLoading(true);
                         setInitialLoad(false);
                         setRefreshNonce((value) => value + 1);
@@ -218,22 +190,13 @@ export default function ManagerPanel() {
             content: `${displayName} will be unable to login or create a new account with this email`,
             okCancel: true,
             onOk: () => {
-                fetch(`${formbarUrl}/api/v1/user/${userId}/ban`,
-                    {
-                        method: "PATCH",
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`
-                        }
-                    }
-                )
+                banUser(String(userId))
                 .then(async (res) => {
-                    let resp: any = null;
-                    try { resp = await res.json(); } catch { resp = null; }
                     if (!res.ok) {
-                        Log({ message: "Failed to ban user:", data: resp, level: "error" });
+                        Log({ message: "Failed to ban user:", data: res, level: "error" });
                         return;
                     }
-                    if (resp?.success) {
+                    if (res?.success) {
                         setIsLoading(true);
                         setInitialLoad(false);
                         setRefreshNonce((value) => value + 1);
@@ -260,22 +223,13 @@ export default function ManagerPanel() {
             content: `${displayName} will now be able to login or create a new account with this email`,
             okCancel: true,
             onOk: () => {
-                fetch(`${formbarUrl}/api/v1/user/${userId}/unban`,
-                    {
-                        method: "PATCH",
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`
-                        }
-                    }
-                )
+                unbanUser(String(userId))
                 .then(async (res) => {
-                    let resp: any = null;
-                    try { resp = await res.json(); } catch { resp = null; }
                     if (!res.ok) {
-                        Log({ message: "Failed to unban user:", data: resp, level: "error" });
+                        Log({ message: "Failed to unban user:", data: res, level: "error" });
                         return;
                     }
-                    if (resp?.success) {
+                    if (res?.success) {
                         setIsLoading(true);
                         setInitialLoad(false);
                         setRefreshNonce((value) => value + 1);

@@ -10,6 +10,8 @@ import Log from "../debugLogger";
 import StudentMenu from "../components/StudentMenu";
 import { useNavigate } from "react-router-dom";
 import { toEpochMs } from "../GlobalFunctions";
+import { getMe } from "../api/userApi";
+import { submitPollResponse } from "../api/classApi";
 const { Title, Text } = Typography;
 
 export default function Student() {
@@ -46,24 +48,14 @@ export default function Student() {
             return;
         }
 		
-        fetch(`${formbarUrl}/api/v1/class/${classData.id}/polls/response`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                response: response,
-                textRes: resTextResponse,
-            })
+        submitPollResponse(classData.id, {
+            response: response,
+            textRes: classData.poll.allowTextResponses ? resTextResponse : undefined,
         })
         .then((res) => {
             if (!res.ok) {
                 throw new Error("Failed to send poll response");
             }
-            return res.json();
-        })
-        .then((res) => {
             Log({ message: "Poll response sent successfully.", data: res });
         })
         .catch((err) => {
@@ -132,13 +124,7 @@ export default function Student() {
 				level: "info",
 			});
 
-			fetch(`${formbarUrl}/api/v1/user/me`, {
-				method: "GET",
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-				},
-			})
-				.then((res) => res.json())
+			getMe()
 				.then((response) => {
 					const { data } = response;
 					Log({

@@ -8,6 +8,9 @@ import { useMobileDetect } from "../main";
 import { accessToken, formbarUrl } from "../socket";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getMe, getUserClasses } from "../api/userApi";
+import { joinClassSession, createClass as createClassAPI } from "../api/classApi";
+import { deleteRoom, joinRoomByCode } from "../api/roomApi";
 
 export default function ClassesPage() {
 	const navigate = useNavigate();
@@ -54,28 +57,22 @@ export default function ClassesPage() {
     function getClasses() {
         if (!userData) return;
 
-        fetch(`${formbarUrl}/api/v1/user/${userData.id}/classes`, {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        })
-        .then((res) => res.json())
-        .then((response) => {
-            const { data } = response;
-            Log({ message: "Classes data", data });
-            const owned = data.filter((cls: any) => cls.isOwner === true);
-            const joined = data.filter((cls: any) => cls.isOwner === false);
-            setOwnedClasses(owned);
-            setJoinedClasses(joined);
-        })
-        .catch((err) => {
-            Log({
-                message: "Error fetching classes data",
-                data: err,
-                level: "error",
+        getUserClasses(String(userData.id))
+            .then((response) => {
+                const { data } = response;
+                Log({ message: "Classes data", data });
+                const owned = data.filter((cls: any) => cls.isOwner === true);
+                const joined = data.filter((cls: any) => cls.isOwner === false);
+                setOwnedClasses(owned);
+                setJoinedClasses(joined);
+            })
+            .catch((err) => {
+                Log({
+                    message: "Error fetching classes data",
+                    data: err,
+                    level: "error",
+                });
             });
-        });
     }
 
     function deleteClass() {
@@ -91,25 +88,14 @@ export default function ClassesPage() {
             content: 'This action is irreversible, and you will not be able to recover this class.',
             okCancel: true,
             onOk: () => {
-                fetch(`${formbarUrl}/api/v1/room/${selectedClass}/`, {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`
-                    }
-                })
+                deleteRoom(selectedClass)
                 .then(async (res) => {
-                    let body: any = null;
-                    try {
-                        body = await res.json();
-                    } catch {
-                        body = null;
-                    }
                     if (!res.ok) {
-                        const message = (body && (body.detail || body.message)) || "Failed to delete class.";
+                        const message = (res && (res.detail || res.message)) || "Failed to delete class.";
                         Log({ message: "Failed to delete class:", data: message, level: "error" });
                         return;
                     }
-                    Log({message: "Class deleted:", data: body});
+                    Log({message: "Class deleted:", data: res.data});
                     getClasses();
                     setSelectedClass(null);
                 })
@@ -122,84 +108,14 @@ export default function ClassesPage() {
 
     }
 
-	function enterClass() {
-		if (selectedClass === null) {
-			Log({ message: "No class selected", level: "error" });
-			return;
-		}
-		Log({ message: "Selected class", data: { selectedClass } });
-		fetch(`${formbarUrl}/api/v1/class/${selectedClass}/join`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		})
-			.then((res) => res.json())
-			.then((response) => {
-				const { data } = response;
-				Log({ message: "Entered class", data });
-				// Handle successful class entry (e.g., navigate to class page)
-				if (response.success) {
-					fetch(`${formbarUrl}/api/v1/user/me`, {
-						method: "GET",
-						headers: {
-							Authorization: `Bearer ${accessToken}`,
-						},
-					})
-						.then((res) => res.json())
-						.then((userResponse) => {
-							const { data: userData } = userResponse;
-							Log({
-								message:
-									"User data fetched successfully after joining class.",
-								data: userData,
-								level: "info",
-							});
-							// Update user data in context or state
-							// For example, if you have a setUserData function from context:
-							setUserData(userData);
-							if (userData.classPermissions >= 4)
-								navigate("/panel");
-							else navigate("/student");
-						})
-						.catch((err) => {
-							Log({
-								message:
-									"Error fetching user data after joining class:",
-								data: err,
-								level: "error",
-							});
-						});
-				}
-			})
-			.catch((err) => {
-				Log({
-					message: "Error entering class",
-					data: err,
-					level: "error",
-				});
-			});
-	}
     function enterClassWithId(classId: number) {
         Log({ message: "Selected class (direct)", data: { classId } });
-        fetch(`${formbarUrl}/api/v1/class/${classId}/join`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        })
-            .then((res) => res.json())
+        joinClassSession(classId)
             .then((response) => {
                 const { data } = response;
                 Log({ message: "Entered class", data });
                 if (response.success) {
-                    fetch(`${formbarUrl}/api/v1/user/me`, {
-                        method: "GET",
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`,
-                        },
-                    })
-                        .then((res) => res.json())
+                    getMe()
                         .then((userResponse) => {
                             const { data: userData } = userResponse;
                             Log({
@@ -236,15 +152,7 @@ export default function ClassesPage() {
 			Log({ message: "Class name cannot be empty", level: "error" });
 			return;
 		}
-		fetch(`${formbarUrl}/api/v1/class/create`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ name: createClassName }),
-		})
-			.then((res) => res.json())
+		createClassAPI({ name: createClassName })
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Created class", data });
@@ -272,14 +180,7 @@ export default function ClassesPage() {
 			Log({ message: "Class code cannot be empty", level: "error" });
 			return;
 		}
-		fetch(`${formbarUrl}/api/v1/room/${joinClassCode}/join`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-		})
-			.then((res) => res.json())
+		joinRoomByCode(joinClassCode)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Joined class with code", data });
@@ -308,14 +209,7 @@ export default function ClassesPage() {
     }
 
     function joinClassWithCode(code: string) {
-        fetch(`${formbarUrl}/api/v1/room/${code}/join`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-            },
-        })
-        .then((res) => res.json())
+        joinRoomByCode(code)
         .then((response) => {
             const { data } = response;
             Log({ message: "Joined class with code (URL)", data });
@@ -417,7 +311,7 @@ export default function ClassesPage() {
 							>
 								<Button
 									type="primary"
-									onClick={() => enterClass()}
+									onClick={() => enterClassWithId(selectedClass!)}
 								>
 									Enter{isMobileView ? "" : " Class"}
 								</Button>

@@ -7,6 +7,9 @@ import * as IonIcons from "ionicons/icons";
 import { useClassData } from "../main";
 import { accessToken, formbarUrl, socket } from "../socket";
 
+import { awardDigipogs as awardDigipogAPICall }  from "../api/digipogApi";
+import { deleteHelpRequest } from "../api/classApi";
+
 type AccordionCategory = {
 	name: string;
 	icon: string;
@@ -260,9 +263,9 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 	const [api, contextHolder] = notification.useNotification();
     const [modal, contextHolderModal] = Modal.useModal();
 
-	const showSuccessNotification = (message: string) => {
+	const showSuccessNotification = (message: string, title: string) => {
 		api["success"]({
-			title: "Awarded",
+			title: title,
 			description: message,
 			placement: "bottom",
 		});
@@ -277,18 +280,14 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 	};
 
     function awardDigipogsAPI(studentId: string, amount: number) {
-        fetch(`${formbarUrl}/api/v1/digipogs/award`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ studentId, amount })
+        
+        awardDigipogAPICall({
+            studentId,
+            amount,
         })
-        .then((res) => res.json())
         .then((data) => {
             if (data.success) {
-                showSuccessNotification(`Awarded ${amount} digipogs to student.`);
+                showSuccessNotification(`Awarded ${amount} digipogs to student.`, "Awarded Digipogs");
             } else {
                 showErrorNotification("Failed to award digipogs.");
             }
@@ -321,8 +320,15 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 							<Button
 								variant="solid"
 								color="red"
-								onClick={() => {
-									socket.emit("deleteTicket", studentData.id);
+								onClick={async () => {
+                                    await deleteHelpRequest(classData?.id!, studentData.id)
+                                    .then((data) => {
+                                        if(data.success) {
+                                            showSuccessNotification("Deleted help ticket.", "Deleted Help Ticket");
+                                            return;
+                                        }
+                                        showErrorNotification("Failed to delete help ticket.");
+                                    });
 								}}
 							>
 								Delete

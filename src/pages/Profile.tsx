@@ -21,6 +21,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useUserData, useSettings, useMobileDetect } from "../main";
 import { accessToken, formbarUrl } from "../socket";
 import CountUp from 'react-countup';
+import { getUser, regenerateUserApiKey, requestUserPinReset, updateUserPin, verifyUserPin } from "../api/userApi";
 
 export default function Profile() {
     const { settings } = useSettings();
@@ -74,23 +75,14 @@ export default function Profile() {
 		setApiKeyLoading(true);
 
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/api/regenerate`,
-				{
-					method: "POST",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				},
-			);
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+			const response = await regenerateUserApiKey(String(userData.id));
+			if (!response.ok || response?.error) {
 				throw new Error(
-					getErrorMessage(payload, "Failed to regenerate API key."),
+					getErrorMessage(response, "Failed to regenerate API key."),
 				);
 			}
 
-			setApiKey(payload?.data?.apiKey || null);
+			setApiKey(response?.data?.apiKey || null);
 			messageApi.success("API key regenerated successfully.");
 		} catch (err) {
 			messageApi.error(
@@ -112,24 +104,10 @@ export default function Profile() {
 
 		setPinLoading(true);
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/pin`,
-				{
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-					body: JSON.stringify({
-						oldPin: oldPin || undefined,
-						pin: newPin,
-					}),
-				},
-			);
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+			const response = await updateUserPin(String(userData.id), { oldPin: oldPin || undefined, pin: newPin });
+			if (!response.ok || response?.error) {
 				throw new Error(
-					getErrorMessage(payload, "Failed to update PIN."),
+					getErrorMessage(response, "Failed to update PIN."),
 				);
 			}
 
@@ -150,19 +128,10 @@ export default function Profile() {
 		if (!userData?.id || !isOwnProfile) return;
 		setPinResetLoading(true);
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/pin/reset`,
-				{
-					method: "POST",
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				},
-			);
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+            const data = await requestUserPinReset(String(userData.id));
+			if (!data.ok || data?.error) {
 				throw new Error(
-					getErrorMessage(payload, "Failed to request PIN reset."),
+					getErrorMessage(data, "Failed to request PIN reset."),
 				);
 			}
 
@@ -195,21 +164,9 @@ export default function Profile() {
 
 		setPinVerifyLoading(true);
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/pin/verify`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-					body: JSON.stringify({ pin: enteredPin }),
-				},
-			);
-
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
-				const errorMessage = getErrorMessage(payload, "Incorrect PIN.");
+            const data = await verifyUserPin(String(userData.id), { pin: enteredPin });
+			if (!data.ok || data?.error) {
+				const errorMessage = getErrorMessage(data, "Incorrect PIN.");
 				if (errorMessage.toLowerCase().includes("no pin is set")) {
 					setHasPin(false);
 					setSensModalOpen(false);
@@ -244,23 +201,10 @@ export default function Profile() {
 
 		setPinLoading(true);
 		try {
-			const response = await fetch(
-				`${formbarUrl}/api/v1/user/${userData.id}/pin`,
-				{
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${accessToken}`,
-					},
-					body: JSON.stringify({
-						pin: firstPin,
-					}),
-				},
-			);
-			const payload = await response.json();
-			if (!response.ok || payload?.error) {
+            const data = await updateUserPin(String(userData.id), { pin: firstPin });
+			if (!data.ok || data?.error) {
 				throw new Error(
-					getErrorMessage(payload, "Failed to update PIN."),
+					getErrorMessage(data, "Failed to update PIN."),
 				);
 			}
 
@@ -282,13 +226,7 @@ export default function Profile() {
 	useEffect(() => {
 		if (!userData?.id && !id) return;
 
-		fetch(`${formbarUrl}/api/v1/user/${id ? id : userData?.id}`, {
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		})
-			.then((res) => res.json())
+        getUser(id ? String(id) : String(userData?.id))
 			.then((response) => {
 				const { data } = response;
 				if (response.error) {

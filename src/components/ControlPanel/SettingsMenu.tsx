@@ -20,6 +20,7 @@ import { useClassData, useMobileDetect, useTheme } from "../../main";
 import { useEffect, useState } from "react";
 import { accessToken, formbarUrl } from "../../socket";
 import Log from "../../debugLogger";
+import { createRoomLink, deleteRoom, deleteRoomLink, getRoomLinks, getRoomTags } from "../../api/roomApi";
 
 export default function SettingsMenu() {
 	const { classData } = useClassData();
@@ -52,13 +53,7 @@ export default function SettingsMenu() {
 
         setClassTags(classData.tags || []);
 
-		fetch(`${formbarUrl}/api/v1/room/${classData.id}/links`, {
-			method: "GET",
-			headers: {
-				"Authorization": `Bearer ${accessToken}`,
-			}
-		})
-		.then((res) => res.json())
+		getRoomLinks(classData.id)
 		.then((data) => {
 			if (data.success && data.data) {
 				setClassLinks(data.data);
@@ -84,15 +79,7 @@ export default function SettingsMenu() {
             return;
         }
 
-        fetch(`${formbarUrl}/api/v1/room/${classData?.id}/links/add`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(newLinkInput)
-        })
-        .then((res) => res.json())
+        createRoomLink(classData!.id, newLinkInput)
         .then((data) => {
             if (data.success) {
                 setClassLinks([...classLinks, newLinkInput]);
@@ -109,15 +96,7 @@ export default function SettingsMenu() {
     }
 
     function removeLink(linkToRemove: { name: string; url: string }) {
-        fetch(`${formbarUrl}/api/v1/room/${classData?.id}/links/remove`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(linkToRemove)
-        })
-        .then((res) => res.json())
+        deleteRoomLink(classData!.id, linkToRemove.name)
         .then((data) => {
             if (data.success) {
                 setClassLinks(classLinks.filter(link => link.url !== linkToRemove.url));
@@ -137,15 +116,7 @@ export default function SettingsMenu() {
             return;
         }
 
-        fetch(`${formbarUrl}/api/v1/room/${classData?.id}/tags/`, {
-            method: "PUT",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ tags: [...classTags, newTagInput] })
-        })
-        .then((res) => res.json())
+        getRoomTags(classData!.id)
         .then((data) => {
             if (data.success) {
                 setClassTags([...classTags, newTagInput]);
@@ -229,26 +200,15 @@ export default function SettingsMenu() {
                                         content: 'This action is irreversible, and you will not be able to recover this class.',
                                         okCancel: true,
                                         onOk: () => {
-                                            fetch(`${formbarUrl}/api/v1/room/${classData?.id}/`, {
-                                                method: "DELETE",
-                                                headers: {
-                                                    Authorization: `Bearer ${accessToken}`
-                                                }
-                                            })
+                                            deleteRoom(classData!.id)
                                             .then(async (response) => {
-                                                let body: any = null;
-                                                try {
-                                                    body = await response.json();
-                                                } catch {
-                                                    body = null;
-                                                }
                                                 if (!response.ok) {
                                                     const message =
-                                                        (body && (body.detail || body.message)) ||
+                                                        (response && (response.detail || response.message)) ||
                                                         "Failed to delete class.";
                                                     throw new Error(message);
                                                 }
-                                                Log({ message: "Class deleted:", data: body });
+                                                Log({ message: "Class deleted:", data: response.data });
                                                 notification.success({
                                                     title: "Class deleted",
                                                     description: "The class has been deleted successfully.",

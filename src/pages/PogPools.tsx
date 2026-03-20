@@ -7,6 +7,7 @@ import * as IonIcons from "ionicons/icons";
 import { useUserData } from "../main";
 import { useEffect, useState } from "react";
 import { accessToken, formbarUrl } from "../socket";
+import { getUserPools } from "../api/userApi";
 
 type Pool = {
 	id: number;
@@ -59,15 +60,7 @@ export default function PogPools() {
 		const offset = (currentPage - 1) * pageSize;
 		const abortController = new AbortController();
 
-		fetch(`${formbarUrl}/api/v1/user/${userData.id}/pools?limit=${pageSize}&offset=${offset}`, {
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-			method: "GET",
-			signal: abortController.signal,
-		})
-			.then((res) => res.json())
+		getUserPools(String(userData.id), pageSize, offset)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Fetched pools", data });

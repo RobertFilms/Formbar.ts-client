@@ -108,7 +108,7 @@ export default function PogPools() {
             })
             .catch((err) => {
                 Log({ message: `Error during payout for pool ${poolId}`, data: err, level: "error" });
-                Modal.error({
+                modal.error({
                     title: "Error During Payout",
                     content: `Failed to payout the pool. Please try again.`,
                 });
@@ -125,7 +125,7 @@ export default function PogPools() {
             })
             .catch((err) => {
                 Log({ message: `Error adding user ${newPoolUserId} to pool ${poolId}`, data: err, level: "error" });
-                Modal.error({
+                modal.error({
                     title: "Error Adding Member",
                     content: `Failed to add user ${newPoolUserId} to the pool. Please try again.`,
                 });
@@ -142,7 +142,7 @@ export default function PogPools() {
             })
             .catch((err) => {
                 Log({ message: `Error removing user ${userId} from pool ${poolId}`, data: err, level: "error" });
-                Modal.error({
+                modal.error({
                     title: "Error Removing Member",
                     content: `Failed to remove user ${userId} from the pool. Please try again.`,
                 });
@@ -151,24 +151,36 @@ export default function PogPools() {
 
     const handleDelete = (poolId: number) => {
 		Log({ message: `Delete pool ${poolId}` });
+
+        modal.warning({
+            title: "Confirm Pool Deletion",
+            content: "Are you sure you want to delete this pool? This action cannot be undone.",
+            okText: "Delete",
+            okType: "danger",
+            cancelText: "Cancel",
+            okCancel: true,
+            onOk: () => {
+                
 		
-        deletePool(poolId)
-            .then(() => {
-                Log({ message: `Pool ${poolId} deleted` });
-                refreshPools();
-            })
-            .catch((err) => {
-                Log({ message: `Error deleting pool ${poolId}`, data: err, level: "error" });
-                Modal.error({
-                    title: "Error Deleting Pool",
-                    content: `Failed to delete the pool. Please try again.`,
-                });
-            });
+                deletePool(poolId)
+                    .then(() => {
+                        Log({ message: `Pool ${poolId} deleted` });
+                        refreshPools();
+                    })
+                    .catch((err) => {
+                        Log({ message: `Error deleting pool ${poolId}`, data: err, level: "error" });
+                        modal.error({
+                            title: "Error Deleting Pool",
+                            content: `Failed to delete the pool. Please try again.`,
+                        });
+                    });
+            },
+        });
 	};
 
 	const handleCreatePool = () => {
 		if (!poolName.trim()) {
-			Modal.error({
+			modal.error({
 				title: "Validation Error",
 				content: "Pool name is required.",
 			});
@@ -186,7 +198,7 @@ export default function PogPools() {
 			})
 			.catch((err) => {
 				Log({ message: `Error creating pool`, data: err, level: "error" });
-				Modal.error({
+				modal.error({
 					title: "Error Creating Pool",
 					content: `Failed to create the pool. Please try again.`,
 				});
@@ -195,6 +207,7 @@ export default function PogPools() {
 
 	return (
 		<>
+            {contextHolder}
 			<FormbarHeader />
 
 			<div
@@ -473,7 +486,7 @@ export default function PogPools() {
                 }
             />
 
-			{/* Create Pool Modal */}
+			{/* Create Pool modal */}
 			<Modal
 				title="Create Pool"
 				open={isCreateModalOpen}

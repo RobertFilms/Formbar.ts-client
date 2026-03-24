@@ -1,7 +1,23 @@
 import { http } from "./HTTPApi";
 
 export function getManagerData(offset?: number, limit?: number, sortBy?: string) {
-    return http(`/manager?offset=${offset}&limit=${limit}&sortBy=${sortBy}`);
+    const params = new URLSearchParams();
+
+    if (offset !== undefined) {
+        params.set("offset", String(offset));
+    }
+
+    if (limit !== undefined) {
+        params.set("limit", String(limit));
+    }
+
+    if (sortBy !== undefined) {
+        params.set("sortBy", sortBy);
+    }
+    
+    const query = params.toString();
+    const url = query ? `/manager?${query}` : "/manager";
+    return http(url);
 }
 
 export function deleteIpFromList(whitelist: boolean, ipId: number) {

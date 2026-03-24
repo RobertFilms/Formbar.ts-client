@@ -69,7 +69,7 @@ export default function ManagerPanel() {
     const [editingIpValue, setEditingIpValue] = useState("");
     const [isIpValid, setIsIpValid] = useState(false);
 
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+    const ipRegex = /^((25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\/(3[0-2]|[12]?\d))?$/;
     const validateIp = (ip: string) => ipRegex.test(ip);
 
     const [modal, contextModal] = Modal.useModal()
@@ -141,11 +141,8 @@ export default function ManagerPanel() {
 
 	useEffect(() => {
 		if (!accessToken) return;
-        const abortController = new AbortController();
 
 		updateManagerData();
-
-		return () => abortController.abort();
 	}, [
         accessToken,
 		currentPage,
@@ -330,7 +327,7 @@ export default function ManagerPanel() {
 				</Flex>
                 {
                     !isMobile && (
-                        <Select style={{ width: "100%" }} defaultValue={user.permissions}>
+                        <Select style={{ width: "100%" }} defaultValue={user.permissions} disabled={isUnverifiedUser(user) || user.permissions === 0} >
                             <Select.Option value={5}>Manager</Select.Option>
                             <Select.Option value={4}>Teacher</Select.Option>
                             <Select.Option value={3}>Mod</Select.Option>
@@ -459,7 +456,7 @@ export default function ManagerPanel() {
 
 			<Flex justify="center" style={{ marginTop: "20px", marginBottom: "20px" }}>
 				<Segmented
-					options={["Users", "IP Addresses", "Banned Users"]}
+					options={["Users", "Classrooms", "IP Addresses", "Banned Users"]}
 					onChange={(value) => {
 						if (value === "Users") {
 							setIsLoading(true);
@@ -591,7 +588,7 @@ export default function ManagerPanel() {
                                     });
                             }
                         }} okButtonProps={{ disabled: !isNewIpValid }}>
-                            <Input placeholder="Enter IP address (e.g., 192.168.1.1)" onChange={(e) => {
+                            <Input placeholder="Enter IP address (e.g., 192.168.1.1)" value={newIpText} onChange={(e) => {
                                 setNewIpText(e.target.value);
                                 setIsNewIpValid(validateIp(e.target.value));
                             }} status={newIpText && !isNewIpValid ? "error" : undefined} />
@@ -602,7 +599,7 @@ export default function ManagerPanel() {
                             </Button>
                         </Tooltip>
                         <Tooltip mouseEnterDelay={0.5} title={`Toggle ${selectedIpList.charAt(0).toUpperCase() + selectedIpList.slice(1)} Active`} color={ipListData.active ? "green" : "red"}>
-                            <Switch value={ipListData.active} onClick={() => {
+                            <Switch checked={ipListData.active} onChange={() => {
                                 toggleIpList(selectedIpList === 'whitelist');
                                 updateIpListData(selectedIpList);
                             }} />
@@ -682,7 +679,17 @@ export default function ManagerPanel() {
                                                             variant="solid" 
                                                             color="red" 
                                                             style={{ marginLeft: "auto" }} 
-                                                            onClick={() => deleteIpFromList(selectedIpList === "whitelist", id).then(() => updateIpListData(selectedIpList))}
+                                                            onClick={() => deleteIpFromList(selectedIpList === "whitelist", id).then(() => updateIpListData(selectedIpList)).catch((err) => {
+                                                                Log({
+                                                                    message: `Error deleting IP from ${selectedIpList}:`,
+                                                                    data: err,
+                                                                    level: "error",
+                                                                });
+                                                                Modal.error({
+                                                                    title: "Failed to delete IP",
+                                                                    content: "An error occurred while deleting the IP address. Please try again.",
+                                                                });
+                                                            })}
                                                         >
                                                             <IonIcon icon={IonIcons.trash} />
                                                         </Button>

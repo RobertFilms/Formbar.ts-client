@@ -7,7 +7,6 @@ import Log from "../debugLogger";
 // Import API functions
 import * as userApi from "../api/userApi";
 import * as classApi from "../api/classApi";
-import * as roomApi from "../api/roomApi";
 import * as digipogApi from "../api/digipogApi";
 import * as managerApi from "../api/managerApi";
 import * as notificationApi from "../api/notificationApi";
@@ -63,17 +62,17 @@ const testFuncs = [
     { name: 'Delete Help Request', func: deleteHelpRequest, hasArgs: true, category: 'Class - Help', method: 'DELETE', testedWorks: true },
     { name: 'Request Help', func: requestClassHelp, hasArgs: true, category: 'Class - Help', method: 'POST' },
 
-    // Room
-    { name: 'Leave Room', func: leaveRoom, hasArgs: true, category: 'Room', method: 'DELETE', testedWorks: true },
-    { name: 'Get Room Tags', func: getRoomTags, hasArgs: false, category: 'Room', method: 'GET' },
-    { name: 'Join Room By Code', func: joinRoomByCode, hasArgs: true, category: 'Room', method: 'POST' },
-    { name: 'Set Room Tags', func: setRoomTags, hasArgs: true, category: 'Room', method: 'PUT' },
+    // Class - Tags & Enrollment
+    { name: 'Leave Class', func: leaveClass, hasArgs: true, category: 'Class', method: 'DELETE', testedWorks: true },
+    { name: 'Get Class Tags', func: getClassTags, hasArgs: false, category: 'Class - Tags', method: 'GET' },
+    { name: 'Join Class By Code', func: joinClassByCode, hasArgs: true, category: 'Class', method: 'POST' },
+    { name: 'Set Class Tags', func: setClassTags, hasArgs: true, category: 'Class - Tags', method: 'PUT' },
 
-    // Room - Links
-    { name: 'Remove Room Link', func: removeRoomLink, hasArgs: true, category: 'Room - Links', method: 'DELETE' },
-    { name: 'Get Room Links', func: getRoomLinks, hasArgs: true, category: 'Room - Links', method: 'GET' },
-    { name: 'Add Room Link', func: addRoomLink, hasArgs: true, category: 'Room - Links', method: 'POST' },
-    { name: 'Update Room Link', func: updateRoomLink, hasArgs: true, category: 'Room - Links', method: 'PUT' },
+    // Class - Links
+    { name: 'Remove Class Link', func: removeClassLink, hasArgs: true, category: 'Class - Links', method: 'DELETE' },
+    { name: 'Get Class Links', func: getClassLinks, hasArgs: true, category: 'Class - Links', method: 'GET' },
+    { name: 'Add Class Link', func: addClassLink, hasArgs: true, category: 'Class - Links', method: 'POST' },
+    { name: 'Update Class Link', func: updateClassLink, hasArgs: true, category: 'Class - Links', method: 'PUT' },
 
     // Digipogs
     { name: 'Award Digipogs', func: awardDigipogs, hasArgs: true, category: 'Digipogs', method: 'POST' },
@@ -393,7 +392,7 @@ async function getClassBanned(inputValue: string) {
 async function getClassLinks(inputValue: string) {
     if (!inputValue) return Log({ message: "getClassLinks requires an id", level: "warn" });
     try {
-        const data = await roomApi.getRoomLinks(Number(inputValue));
+        const data = await classApi.getClassLinks(Number(inputValue));
         Log({ message: "Get Class Links:", data });
     } catch (err) {
         Log({ message: "Error getting class links:", data: err, level: "error" });
@@ -585,103 +584,87 @@ async function requestClassHelp(inputValue: string) {
     } catch (err) { Log({ message: 'Error requesting help:', data: err, level: "error" }); }
 }
 
-// --- Room ---
-async function leaveRoom(inputValue: string) {
-    if (!inputValue) return Log({ message: "leaveRoom requires a room id", level: "warn" });
+// --- Class - Tags & Enrollment ---
+async function getClassTags() {
     try {
-        const data = await roomApi.leaveRoom(Number(inputValue));
-        Log({ message: 'Leave Room:', data });
-    } catch (err) { Log({ message: 'Error leaving room:', data: err, level: "error" }); }
+        const data = await classApi.getClassTags(0); // Adjust as needed
+        Log({ message: 'Get Class Tags:', data });
+    } catch (err) { Log({ message: 'Error getting class tags:', data: err, level: "error" }); }
 }
 
-async function getRoomTags() {
-    try {
-        const data = await roomApi.getRoomTags(0); // Adjust as needed
-        Log({ message: 'Get Room Tags:', data });
-    } catch (err) { Log({ message: 'Error getting room tags:', data: err, level: "error" }); }
-}
-
-async function joinRoomByCode(inputValue: string) {
-    if (!inputValue) return Log({ message: "joinRoomByCode requires a code or JSON with {code}", level: "warn" });
+async function joinClassByCode(inputValue: string) {
+    if (!inputValue) return Log({ message: "joinClassByCode requires a code or JSON with {code}", level: "warn" });
     let code = inputValue;
     try {
         const parsed = JSON.parse(inputValue); if (parsed.code) code = parsed.code;
     } catch {}
     try {
-        const data = await roomApi.joinRoomByCode(code);
-        Log({ message: 'Join Room By Code:', data });
-    } catch (err) { Log({ message: 'Error joining room by code:', data: err, level: "error" }); }
+        const data = await classApi.joinClassByCode(code);
+        Log({ message: 'Join Class By Code:', data });
+    } catch (err) { Log({ message: 'Error joining class by code:', data: err, level: "error" }); }
 }
 
-async function setRoomTags(inputValue: string) {
-    if (!inputValue) return Log({ message: "setRoomTags requires a body (JSON) or comma-separated tags", level: "warn" });
+async function setClassTags(inputValue: string) {
+    if (!inputValue) return Log({ message: "setClassTags requires a body (JSON) or comma-separated tags", level: "warn" });
     let payload: any;
     try { payload = JSON.parse(inputValue); } catch { payload = { tags: inputValue.split(',').map(s => s.trim()) }; }
     try {
-        const data = await roomApi.setRoomTags(0, payload.tags || []); // Adjust classId as needed
-        Log({ message: 'Set Room Tags:', data });
-    } catch (err) { Log({ message: 'Error setting room tags:', data: err, level: "error" }); }
+        const data = await classApi.setClassTags(0, payload.tags || []); // Adjust classId as needed
+        Log({ message: 'Set Class Tags:', data });
+    } catch (err) { Log({ message: 'Error setting class tags:', data: err, level: "error" }); }
 }
 
-// --- Room - Links ---
-async function removeRoomLink(inputValue: string) {
-    if (!inputValue) return Log({ message: "removeRoomLink requires 'roomId|linkId' or roomId", level: "warn" });
+// --- Class - Links ---
+async function removeClassLink(inputValue: string) {
+    if (!inputValue) return Log({ message: "removeClassLink requires 'classId|linkId' or classId", level: "warn" });
     if (inputValue.includes('|')) {
-        const [roomId, linkId] = inputValue.split('|').map(s => s.trim());
+        const [classId, linkId] = inputValue.split('|').map(s => s.trim());
         try {
-            const data = await roomApi.deleteRoomLink(Number(roomId), linkId);
-            Log({ message: 'Remove Room Link (by id):', data });
-        } catch (err) { Log({ message: 'Error removing room link:', data: err, level: "error" }); }
+            const data = await classApi.deleteClassLink(Number(classId), linkId);
+            Log({ message: 'Remove Class Link (by id):', data });
+        } catch (err) { Log({ message: 'Error removing class link:', data: err, level: "error" }); }
     } else {
         try {
-            const data = await roomApi.deleteRoom(Number(inputValue));
-            Log({ message: 'Remove Room Link:', data });
-        } catch (err) { Log({ message: 'Error removing room link:', data: err, level: "error" }); }
+            const data = await classApi.deleteClass(Number(inputValue));
+            Log({ message: 'Remove Class Link:', data });
+        } catch (err) { Log({ message: 'Error removing class link:', data: err, level: "error" }); }
     }
 }
 
-async function getRoomLinks(inputValue: string) {
-    if (!inputValue) return Log({ message: "getRoomLinks requires a room id", level: "warn" });
-    try {
-        const data = await roomApi.getRoomLinks(Number(inputValue));
-        Log({ message: 'Get Room Links:', data });
-    } catch (err) { Log({ message: 'Error getting room links:', data: err, level: "error" }); }
-}
-
-async function addRoomLink(inputValue: string) {
-    if (!inputValue) return Log({ message: "addRoomLink requires 'roomId|json' or JSON with classId", level: "warn" });
+async function addClassLink(inputValue: string) {
+    if (!inputValue) return Log({ message: "addClassLink requires 'classId|json' or JSON with classId", level: "warn" });
     let payload: any = {};
-    let roomId = '';
+    let classId = '';
     if (inputValue.includes('|')) {
         const [r, jsonPart] = inputValue.split('|', 2);
-        roomId = r.trim();
+        classId = r.trim();
         try { payload = JSON.parse(jsonPart); } catch { payload = { url: jsonPart }; }
     } else {
-        try { payload = JSON.parse(inputValue); roomId = payload.roomId || payload.classId || ''; } catch { return Log({ message: "addRoomLink: provide roomId|json or valid JSON", level: "warn" }); }
+        try { payload = JSON.parse(inputValue); classId = payload.classId || ''; } catch { return Log({ message: "addClassLink: provide classId|json or valid JSON", level: "warn" }); }
     }
-    if (!roomId) return Log({ message: "addRoomLink requires roomId", level: "warn" });
+    if (!classId) return Log({ message: "addClassLink requires classId", level: "warn" });
     try {
-        const data = await roomApi.createRoomLink(Number(roomId), payload);
-        Log({ message: 'Add Room Link:', data });
-    } catch (err) { Log({ message: 'Error adding room link:', data: err, level: "error" }); }
+        const data = await classApi.createClassLink(Number(classId), payload);
+        Log({ message: 'Add Class Link:', data });
+    } catch (err) { Log({ message: 'Error adding class link:', data: err, level: "error" }); }
 }
 
-async function updateRoomLink(inputValue: string) {
-    if (!inputValue) return Log({ message: "updateRoomLink requires 'roomId|json' or JSON with classId", level: "warn" });
+async function updateClassLink(inputValue: string) {
+    if (!inputValue) return Log({ message: "updateClassLink requires 'classId|json' or JSON with classId", level: "warn" });
     let payload: any = {};
-    let roomId = '';
+    let classId = '';
     if (inputValue.includes('|')) {
         const [r, jsonPart] = inputValue.split('|', 2);
-        roomId = r.trim();
+        classId = r.trim();
         try { payload = JSON.parse(jsonPart); } catch { payload = { data: jsonPart }; }
     } else {
-        try { payload = JSON.parse(inputValue); roomId = payload.roomId || payload.classId || ''; } catch { return Log({ message: "updateRoomLink: provide roomId|json or valid JSON", level: "warn" }); }
+        try { payload = JSON.parse(inputValue); classId = payload.classId || ''; } catch { return Log({ message: "updateClassLink: provide classId|json or valid JSON", level: "warn" }); }
     }
-    if (!roomId) return Log({ message: "updateRoomLink requires roomId", level: "warn" });
+    if (!classId) return Log({ message: "updateClassLink requires classId", level: "warn" });
     try {
-        const data = await roomApi.updateRoomLink(Number(roomId), payload);
-        Log({ message: 'Update Room Link:', data });
-    } catch (err) { Log({ message: 'Error updating room link:', data: err, level: "error" }); }
+        const data = await classApi.updateClassLink(Number(classId), payload);
+        Log({ message: 'Update Class Link:', data });
+    } catch (err) { Log({ message: 'Error updating class link:', data: err, level: "error" }); }
 }
 
 // --- Digipogs ---

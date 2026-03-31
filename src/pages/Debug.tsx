@@ -223,17 +223,17 @@ const SETUP_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
 	{ method: "POST", apiPath: "/class/create" },
 	{ method: "POST", apiPath: "/class/{id}/join" },
 	{ method: "POST", apiPath: "/class/{id}/start" },
-	{ method: "POST", apiPath: "/room/{code}/join" },
+	{ method: "POST", apiPath: "/class/{code}/join" },
 ];
 
 // Teardown operations run last to clean up test state.
 const TEARDOWN_API_PATHS: Array<{ method: HttpMethod; apiPath: string }> = [
 	{ method: "POST", apiPath: "/class/{id}/end" },
 	{ method: "POST", apiPath: "/class/{id}/leave" },
-	{ method: "POST", apiPath: "/room/{id}/leave" },
+	{ method: "POST", apiPath: "/class/{id}/leave" },
 	{ method: "PATCH", apiPath: "/user/{id}/ban" },
 	{ method: "PATCH", apiPath: "/user/{id}/unban" },
-	{ method: "DELETE", apiPath: "/room/{id}" },
+	{ method: "DELETE", apiPath: "/class/{id}" },
 	{ method: "DELETE", apiPath: "/user/{id}" },
 ];
 
@@ -249,13 +249,13 @@ const MAIN_MUTATION_ORDER: Array<{ method: HttpMethod; apiPath: string }> = [
 	{ method: "POST", apiPath: "/class/{id}/timer/start" },
 	{ method: "POST", apiPath: "/class/{id}/timer/end" },
 	{ method: "POST", apiPath: "/class/{id}/timer/clear" },
-	{ method: "POST", apiPath: "/room/{id}/links/add" },
-	{ method: "PUT", apiPath: "/room/{id}/links" },
-	{ method: "DELETE", apiPath: "/room/{id}/links" },
-	{ method: "POST", apiPath: "/room/{id}/links/remove" },
-	{ method: "POST", apiPath: "/room/{id}/links/change" },
-	{ method: "PUT", apiPath: "/room/tags" },
-	{ method: "POST", apiPath: "/room/tags" },
+	{ method: "POST", apiPath: "/class/{id}/links/add" },
+	{ method: "PUT", apiPath: "/class/{id}/links" },
+	{ method: "DELETE", apiPath: "/class/{id}/links" },
+	{ method: "POST", apiPath: "/class/{id}/links/remove" },
+	{ method: "POST", apiPath: "/class/{id}/links/change" },
+	{ method: "PUT", apiPath: "/class/tags" },
+	{ method: "POST", apiPath: "/class/tags" },
 	{ method: "POST", apiPath: "/class/{id}/help/request" },
 	{ method: "DELETE", apiPath: "/class/{id}/students/{userId}/help" },
 	{ method: "POST", apiPath: "/class/{id}/break/request" },
@@ -987,14 +987,14 @@ function buildSwaggerOperations(spec: SwaggerSpec): SwaggerOperation[] {
 
 function isSecondaryActorOperation(operation: SwaggerOperation): boolean {
 	return (
-		matchesOperation(operation, "POST", "/room/{code}/join") ||
+		matchesOperation(operation, "POST", "/class/{code}/join") ||
 		matchesOperation(operation, "PATCH", "/user/{id}/pin") ||
 		matchesOperation(operation, "POST", "/user/{id}/pin/verify") ||
 		matchesOperation(operation, "POST", "/user/{id}/pin/reset") ||
 		matchesOperation(operation, "POST", "/user/{id}/verify/request") ||
 		matchesOperation(operation, "POST", "/class/{id}/polls/response") ||
 		matchesOperation(operation, "POST", "/class/{id}/leave") ||
-		matchesOperation(operation, "DELETE", "/room/{id}/leave") ||
+		matchesOperation(operation, "DELETE", "/class/{id}/leave") ||
 		matchesOperation(operation, "POST", "/digipogs/transfer")
 	);
 }
@@ -1030,11 +1030,10 @@ function getParameterOverrideValue(
 
 	if (
 		parameter.in === "path" &&
-		matchesOperation(operation, "POST", "/room/{code}/join") &&
+		matchesOperation(operation, "POST", "/class/{code}/join") &&
 		name === "code"
 	) {
 		return findInPool(context.valuePool, [
-			"roomcode",
 			"classkey",
 			"classcode",
 			"key",
@@ -1690,8 +1689,7 @@ function getFeatureDisabledReason(response: ApiResponse): string | null {
 
 function isClassScopedOperation(operation: SwaggerOperation): boolean {
 	return (
-		operation.apiPath.startsWith("/class/") ||
-		operation.apiPath.startsWith("/room/")
+		operation.apiPath.startsWith("/class/")
 	);
 }
 
@@ -1785,10 +1783,10 @@ function getRuntimeOperationBlocker(
 	}
 
 	if (
-		matchesOperation(operation, "POST", "/room/{code}/join") &&
-		!findInPool(context.valuePool, ["roomcode", "classkey", "key"])
+		matchesOperation(operation, "POST", "/class/{code}/join") &&
+		!findInPool(context.valuePool, ["classkey", "classcode", "key"])
 	) {
-		return "No room code is available for the temporary class.";
+		return "No class code is available for the temporary class.";
 	}
 
 	if (

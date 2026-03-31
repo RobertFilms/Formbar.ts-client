@@ -8,8 +8,7 @@ import { useMobileDetect } from "../main";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMe, getUserClasses } from "../api/userApi";
-import { joinClassSession, createClass as createClassAPI } from "../api/classApi";
-import { deleteRoom, joinRoomByCode } from "../api/roomApi";
+import { joinClassSession, createClass as createClassAPI, deleteClass, joinClassByCode } from "../api/classApi";
 
 export default function ClassesPage() {
 	const navigate = useNavigate();
@@ -87,7 +86,7 @@ export default function ClassesPage() {
             content: 'This action is irreversible, and you will not be able to recover this class.',
             okCancel: true,
             onOk: () => {
-                deleteRoom(selectedClass)
+                deleteClass(selectedClass)
                 .then(async (res) => {
                     if (!res.ok) {
                         const message = (res && (res.detail || res.message)) || "Failed to delete class.";
@@ -179,7 +178,7 @@ export default function ClassesPage() {
 			Log({ message: "Class code cannot be empty", level: "error" });
 			return;
 		}
-		joinRoomByCode(joinClassCode)
+		joinClassByCode(joinClassCode)
 			.then((response) => {
 				const { data } = response;
 				Log({ message: "Joined class with code", data });
@@ -208,7 +207,7 @@ export default function ClassesPage() {
     }
 
     function joinClassWithCode(code: string) {
-        joinRoomByCode(code)
+        joinClassByCode(code)
         .then((response) => {
             const { data } = response;
             Log({ message: "Joined class with code (URL)", data });

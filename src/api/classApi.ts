@@ -113,3 +113,48 @@ export function deleteHelpRequest(classId: number, userId: string) {
 export function requestHelp(classId: number) {
     return http(`/class/${classId}/help/request`, "POST");
 }
+
+// --- Class - Tags ---
+
+export function getClassTags(classId: number) {
+    return http(`/class/${classId}/tags`);
+}
+
+export function setClassTags(classId: number, tags: string[]) {
+    return http(`/class/${classId}/tags`, "PUT", {}, { tags });
+}
+
+// --- Class - Enrollment ---
+
+export function joinClassByCode(code: string) {
+    return http(`/class/${code}/join`, "POST");
+}
+
+export function deleteClass(classId: number) {
+    return http(`/class/${classId}`, "DELETE");
+}
+
+// --- Class - Links ---
+
+export function deleteClassLink(classId: number, linkName: string) {
+    return http(`/class/${classId}/links`, "DELETE", {}, { name: linkName });
+}
+
+export function getClassLinks(classId: number) {
+    return http(`/class/${classId}/links`);
+}
+
+export function createClassLink(classId: number, body: {
+    name: string,
+    url: string,
+}) {
+    return http(`/class/${classId}/links/add`, "POST", {}, body);
+}
+
+export function updateClassLink(classId: number, body: {
+    oldName: string,
+    name: string,
+    url: string,
+}) {
+    return http(`/class/${classId}/links`, "PUT", {}, body);
+}

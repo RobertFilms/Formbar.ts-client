@@ -27,7 +27,7 @@ import { accessToken } from "../socket";
 import { useSettings, getAppearAnimation, useMobileDetect } from "../main";
 import { banUser, deleteUser, unbanUser, verifyUser } from "../api/userApi";
 import { addIpToList, deleteIpFromList, getIpAccessList, getManagerData, toggleIpList, updateIpFromList } from "../api/managerApi";
-import { deleteRoom } from "../api/roomApi";
+import { deleteClass } from "../api/classApi";
 
 type ManagerPanelUser = {
 	id: number | string;
@@ -577,7 +577,7 @@ export default function ManagerPanel() {
                                             <Card title={classroom.name} style={{ textAlign: "center" }}>
                                                 <Text type="secondary" style={{marginRight: 10}}>ID: {classroom.id}</Text>
                                                 <Button color="red" type="primary" variant="solid" onClick={() => {
-                                                    deleteRoom(classroom.id)
+                                                    deleteClass(classroom.id)
                                                         .then(async (response) => {
                                                             if (!response.ok) {
                                                                 const message =

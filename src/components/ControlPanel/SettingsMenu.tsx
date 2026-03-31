@@ -19,7 +19,7 @@ const { Title, Text } = Typography;
 import { useClassData, useMobileDetect, useTheme } from "../../main";
 import { useEffect, useState } from "react";
 import Log from "../../debugLogger";
-import { createRoomLink, deleteRoom, deleteRoomLink, getRoomLinks, getRoomTags } from "../../api/roomApi";
+import { createClassLink, deleteClass, deleteClassLink, getClassLinks, getClassTags } from "../../api/classApi";
 
 export default function SettingsMenu() {
 	const { classData } = useClassData();
@@ -52,7 +52,7 @@ export default function SettingsMenu() {
 
         setClassTags(classData.tags || []);
 
-		getRoomLinks(classData.id)
+		getClassLinks(classData.id)
 		.then((data) => {
 			if (data.success && data.data) {
 				setClassLinks(data.data);
@@ -78,7 +78,7 @@ export default function SettingsMenu() {
             return;
         }
 
-        createRoomLink(classData!.id, newLinkInput)
+        createClassLink(classData!.id, newLinkInput)
         .then((data) => {
             if (data.success) {
                 setClassLinks([...classLinks, newLinkInput]);
@@ -95,7 +95,7 @@ export default function SettingsMenu() {
     }
 
     function removeLink(linkToRemove: { name: string; url: string }) {
-        deleteRoomLink(classData!.id, linkToRemove.name)
+        deleteClassLink(classData!.id, linkToRemove.name)
         .then((data) => {
             if (data.success) {
                 setClassLinks(classLinks.filter(link => link.url !== linkToRemove.url));
@@ -115,7 +115,7 @@ export default function SettingsMenu() {
             return;
         }
 
-        getRoomTags(classData!.id)
+        getClassTags(classData!.id)
         .then((data) => {
             if (data.success) {
                 setClassTags([...classTags, newTagInput]);
@@ -199,7 +199,7 @@ export default function SettingsMenu() {
                                         content: 'This action is irreversible, and you will not be able to recover this class.',
                                         okCancel: true,
                                         onOk: () => {
-                                            deleteRoom(classData!.id)
+                                            deleteClass(classData!.id)
                                             .then(async (response) => {
                                                 if (!response.ok) {
                                                     const message =

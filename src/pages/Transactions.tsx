@@ -114,7 +114,7 @@ export default function Transactions() {
 							<TransactionItem
 								key={index}
 								transaction={transaction}
-								userId={id ? Number(id) : userData?.id}
+								userId={id ? Number(id) : Number(userData?.id)}
 							/>
 						))
 					)}

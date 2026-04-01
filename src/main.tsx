@@ -343,7 +343,6 @@ const AppContent = () => {
 				setUserData(data);
 			}
 		} catch (err) {
-            console.log(err)
 			Log({
 				message: "Error fetching user data",
 				data: err,

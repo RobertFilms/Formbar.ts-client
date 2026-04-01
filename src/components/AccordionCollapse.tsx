@@ -8,7 +8,7 @@ import { useClassData } from "../main";
 import { socket } from "../socket";
 
 import { awardDigipogs as awardDigipogAPICall }  from "../api/digipogApi";
-import { deleteHelpRequest } from "../api/classApi";
+import { approveStudentBreak, deleteHelpRequest, denyStudentBreak } from "../api/classApi";
 
 type AccordionCategory = {
 	name: string;
@@ -358,11 +358,7 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 											color="green"
 											style={{ width: "120px" }}
 											onClick={() => {
-												socket.emit(
-													"approveBreak",
-													true,
-													studentData.id,
-												);
+												approveStudentBreak(classData?.id!, studentData.id);
 											}}
 										>
 											Approve
@@ -372,11 +368,7 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 											color="red"
 											style={{ width: "120px" }}
 											onClick={() => {
-												socket.emit(
-													"approveBreak",
-													false,
-													studentData.id,
-												);
+												denyStudentBreak(classData?.id!, studentData.id);
 											}}
 										>
 											Deny
@@ -389,11 +381,7 @@ export function StudentAccordion({ studentData }: { studentData: Student }) {
 									color="red"
 									style={{ width: "120px" }}
 									onClick={() => {
-										socket.emit(
-											"approveBreak",
-											false,
-											studentData.id,
-										);
+										denyStudentBreak(classData?.id!, studentData.id);
 									}}
 								>
 									End Break

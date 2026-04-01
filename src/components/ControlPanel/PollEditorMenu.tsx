@@ -122,7 +122,6 @@ export default function PollsEditorMenu() {
         //? Use fetch WHEN IT ACTUALLY WORKS.
         createPoll(classData.id, pollProperties)
             .then((data) => {
-                console.log("Poll created:", data);
                 socket?.emit("classUpdate", ""); // Refresh class data to show new poll
             })
             .catch((err) => {

@@ -54,8 +54,8 @@ export default function SettingsMenu() {
 
 		getClassLinks(classData.id)
 		.then((data) => {
-			if (data.success && data.data) {
-				setClassLinks(data.data);
+			if (data.success && data.data.links) {
+				setClassLinks(data.data.links);
 			}
 		})
 		.catch((err) => {
@@ -128,6 +128,21 @@ export default function SettingsMenu() {
             showErrorNotification("An error occurred while adding the tag.");
         });
     }
+
+	function tryRemoveTag(tagToRemove: string) {
+		getClassTags(classData!.id)
+		.then((data) => {
+			if (data.success) {
+				setClassTags(classTags.filter(tag => tag !== tagToRemove));
+			} else {
+				showErrorNotification("Failed to remove tag.");
+			}
+		})
+		.catch((err) => {
+			Log({ message: "Error removing tag:", data: err, level: "error" });
+			showErrorNotification("An error occurred while removing the tag.");
+		});
+	}
 
 	const {isDark} = useTheme();
 
@@ -438,6 +453,7 @@ export default function SettingsMenu() {
                                     variant="outlined" 
                                     type="default" 
                                     style={{marginTop: 10}}
+									onClick={() => tryRemoveTag(tag)}
                                 >
                                     {tag}
                                     <IonIcon icon={IonIcons.trash} />

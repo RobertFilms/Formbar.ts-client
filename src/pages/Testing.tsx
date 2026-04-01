@@ -685,8 +685,7 @@ async function transferDigipogs(inputValue: string, bodyValue: string) {
     if (!inputValue && !bodyValue) return Log({ message: "transferDigipogs requires body JSON or 'toUserId|amount'", level: "warn" });
     let payload: any;
     try { payload = JSON.parse(bodyValue); } catch {
-        const [toUserId, amount] = inputValue.split('|').map(s => s.trim());
-        payload = { to: toUserId, amount: Number(amount) || 0, pin: "", reason: "" };
+        payload = JSON.parse(inputValue || '{}');
     }
     try {
         const data = await digipogApi.transferDigipogs(payload);

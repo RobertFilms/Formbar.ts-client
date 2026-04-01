@@ -1,4 +1,4 @@
-import { Button, Divider, Flex, Input, Modal, Switch, Typography } from "antd";
+import { Button, Col, Divider, Flex, Input, Modal, Pagination, Row, Spin, Switch, Typography } from "antd";
 const { Text, Title } = Typography;
 import { textColorForBackground } from "../../GlobalFunctions";
 import { socket } from "../../socket";
@@ -85,9 +85,10 @@ const defaultPolls = [
 ];
 
 import { useTheme } from "../../main";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { notification } from "antd";
+import { getPolls } from "../../api/classApi";
 
 export default function PollsMenu({
 	openModalId,
@@ -106,6 +107,16 @@ export default function PollsMenu({
     const [allowMultipleResponses, setAllowMultipleResponses] = useState<boolean>(false);
     const [pollPrompt, setPollPrompt] = useState<string>("");
     const [pollAnswers, setPollAnswers] = useState<{answer: string, weight: number, color: string}[]>([]);
+
+	// Previous polls pagination state
+	const [previousPolls, setPreviousPolls] = useState<any[]>([]);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [pageSize, setPageSize] = useState(10);
+	const [totalPreviousPolls, setTotalPreviousPolls] = useState(0);
+	const [isPreviousPollsLoading, setIsPreviousPollsLoading] = useState(false);
+	const [openPreviousPollId, setOpenPreviousPollId] = useState<number | null>(null);
+	const [previousPollPrompt, setPreviousPollPrompt] = useState<string>("");
+	const [previousPollAnswers, setPreviousPollAnswers] = useState<{answer: string, weight: number, color: string}[]>([]);
 
 	const [api, contextHolder] = notification.useNotification();
 
@@ -138,6 +149,32 @@ export default function PollsMenu({
 		setOpenModalId(null);
 	}
 
+	useEffect(() => {
+		if(!classData) return;
+
+		setIsPreviousPollsLoading(true);
+		const offset = (currentPage - 1) * pageSize;
+
+		getPolls(classData.id, pageSize, offset)
+			.then((data) => {
+				if (data.success) {
+					const pollsData = Array.isArray(data.data?.polls) ? data.data.polls : Array.isArray(data.data) ? data.data : [];
+					const total = typeof data.data?.pagination?.total === "number" ? data.data.pagination.total : pollsData.length;
+					setPreviousPolls(pollsData);
+					setTotalPreviousPolls(total);
+				}
+			})
+			.catch((err) => {
+				showErrorNotification(
+					err.message || "Failed to fetch previous polls.",
+				);
+				setPreviousPolls([]);
+			})
+			.finally(() => {
+				setIsPreviousPollsLoading(false);
+			});
+	}, [classData, currentPage, pageSize])
+
 	return (
         <>{contextHolder}
 		<Flex align="center" justify="space-between" gap={40} style={{ height: "100%" }} vertical={isMobile}>
@@ -152,7 +189,7 @@ export default function PollsMenu({
                             >
                                 <Button
                                     type="primary"
-                                    style={{ padding: "10px", width: "100%" }}
+                                    style={{ width: "100%", fontSize: "clamp(12px, 1.5vw, 16px)", overflow: "hidden", textOverflow: "ellipsis", display: "block", whiteSpace: "nowrap" }}
                                     onClick={() => {
                                         setOpenModalId(poll.id);
                                         setAllowVoteChanges(poll.allowVoteChanges);
@@ -250,9 +287,140 @@ export default function PollsMenu({
 				})}
 			</Flex>
 			<Flex vertical align="center" justify="start" style={{ height: "100%", flex: 1, ...(isMobile ? {
-                borderTop: `2px solid ${isDark ? '#0002' : '#fff2'}`, paddingTop: "20px",} : {borderLeft: `2px solid ${isDark ? '#0002' : '#fff2'}`, paddingLeft: "20px", paddingRight: "20px"}) }}>
+                borderTop: `2px solid ${isDark ? '#0002' : '#fff2'}`, paddingTop: "20px", overflowY:'scroll'} : {borderLeft: `2px solid ${isDark ? '#0002' : '#fff2'}`, paddingLeft: "20px", paddingRight: "20px",overflowY:'scroll'}) }}>
 				<Title level={isMobile ? 3 : 2}>Previous Polls</Title>
-				<p>no endpoint</p>
+			{isPreviousPollsLoading ? (
+				<Spin style={{ marginTop: "20px" }} />
+			) : previousPolls.length === 0 ? (
+				<Text type="secondary">No previous polls available</Text>
+			) : (
+				<>
+					<Row gutter={[16, 4]} style={{ width: "100%" }}>
+						{previousPolls.map((poll) => {
+							return (
+								<Col key={poll.globalPollId} xs={24} sm={12} lg={8}>
+									<div
+										style={{ marginTop: "10px", width: "100%" }}
+									>
+										<Button
+											type="primary"
+										style={{ width: "100%", fontSize: "clamp(12px, 1.5vw, 16px)", overflow: "hidden", textOverflow: "ellipsis", display: "block", whiteSpace: "nowrap" }}
+											onClick={() => {
+												setOpenPreviousPollId(poll.globalPollId);
+												setPreviousPollPrompt(poll.prompt);
+												setPreviousPollAnswers(poll.responses ? poll.responses.map((a: any) => ({
+													answer: a.answer || "",
+													weight: a.weight || 1,
+													color: a.color || "#000000"
+												})) : []);
+											}}
+										>
+											<Text strong>{poll.prompt}</Text>
+										</Button>
+										<Modal
+											centered
+											title={
+												<Input value={previousPollPrompt} placeholder="Prompt" onChange={(e) => setPreviousPollPrompt(e.target.value)} style={{width:'calc(100% - 35px)'}}/>
+											}
+											open={openPreviousPollId === poll.globalPollId}
+											onCancel={() => {
+												setOpenPreviousPollId(null);
+											}}
+											destroyOnHidden
+											footer={null}
+										>
+											{previousPollAnswers.map((answer, index) => (
+												<Button
+													key={index}
+													style={{
+														backgroundColor: answer.color,
+														color: textColorForBackground(
+															answer.color,
+														),
+														marginTop: "5px",
+														width: "100%",
+													}}
+												>
+													<Input value={answer.answer} 
+													variant='borderless' placeholder="Answer" onChange={(e) => {
+														setPreviousPollAnswers(previousPollAnswers.map((a, i) => 
+															i === index ? {...a, answer: e.target.value} : a
+														));
+													}} 
+													style={{
+														color: textColorForBackground(answer.color),
+													}}
+													/>
+												</Button>
+											))}
+
+											<Flex vertical gap={10} style={{ marginTop: "20px" }}>
+												<Flex align="center" justify="space-between">
+													Allow Vote Changes
+													<Switch defaultChecked={poll.allowVoteChanges} onChange={(checked) => setAllowVoteChanges(checked)} />
+												</Flex>
+
+												<Flex align="center" justify="space-between">
+													Allow Text Responses
+													<Switch defaultChecked={poll.allowTextResponses} onChange={(checked) => setAllowTextResponses(checked)} />
+												</Flex>
+
+												<Flex align="center" justify="space-between">
+													Blind Poll
+													<Switch defaultChecked={poll.blind} onChange={(checked) => setBlind(checked)} />
+												</Flex>
+
+												<Flex align="center" justify="space-between">
+													Multiple Answer Poll
+													<Switch defaultChecked={poll.allowMultipleResponses} onChange={(checked) => setAllowMultipleResponses(checked)} />
+												</Flex>
+											</Flex>
+
+											<div
+												style={{
+													marginTop: "20px",
+													textAlign: "center",
+													width: "100%",
+												}}
+											>
+												<Button
+													type="primary"
+													onClick={() => {
+														const editedPoll = {
+															...poll,
+															prompt: previousPollPrompt,
+															answers: previousPollAnswers,
+															allowVoteChanges: allowVoteChanges,
+															allowTextResponses: allowTextResponses,
+															blind: blind,
+															allowMultipleResponses: allowMultipleResponses
+														};
+														socket?.emit("startPoll", editedPoll);
+														setOpenPreviousPollId(null);
+													}}
+												>
+													Start Poll
+												</Button>
+											</div>
+										</Modal>
+									</div>
+								</Col>
+							);
+						})}
+					</Row>
+					{totalPreviousPolls > 0 && (
+						<Pagination
+							current={currentPage}
+							pageSize={pageSize}
+							total={totalPreviousPolls}
+							pageSizeOptions={[10, 20, 50, 100]}
+
+							onChange={(page, size) => { setCurrentPage(page); setPageSize(size); }}
+							style={{ marginTop: "20px" }}
+						/>
+					)}
+				</>
+			)}
 			</Flex>
 		</Flex></>
 	);

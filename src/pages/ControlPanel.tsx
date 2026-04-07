@@ -4,10 +4,7 @@ import {
 	Col,
 	Flex,
 	Button,
-	Modal,
-	Input,
-	Switch,
-    Card,
+	Card,
     Progress,
     Typography,
 } from "antd";
@@ -28,11 +25,12 @@ import { socket } from "../socket";
 import Log from "../debugLogger";
 import ControlPanelPoll from "../components/BarPoll";
 import Statistics from "../components/ControlPanel/StatisticsPage";
+import PollModal from "../components/PollModal";
 
 import { isMobile } from "../main";
 import { useNavigate } from "react-router-dom";
 import TimerPage from "../components/ControlPanel/TimerPage";
-import { formatTime, textColorForBackground, toEpochMs } from "../GlobalFunctions";
+import { formatTime, toEpochMs } from "../GlobalFunctions";
 import { clearCurrentPoll, endPoll } from "../api/classApi";
 import { clearTimer, pauseTimer, resumeTimer } from "../api/timerApi";
 
@@ -460,56 +458,17 @@ export default function ControlPanel() {
                         ) : null
                     }
 
-                    <Modal
-                        centered
-                        title={
-                            <Input value={classData?.poll?.prompt} placeholder="Prompt" disabled style={{width:'calc(100% - 35px)'}}/>
-                        }
+                    <PollModal
                         open={showPollDetails}
-                        onCancel={() => {
-                            setShowPollDetails(false);
-                        }}
-                        destroyOnHidden
-                        footer={null}
-                    >
-                        {classData?.poll.responses.map((answer, index) => (
-                            <Button
-                                key={index}
-                                style={{
-                                    backgroundColor: answer.color,
-                                    color: textColorForBackground(
-                                        answer.color,
-                                    ),
-                                    marginTop: "5px",
-                                    width: "100%",
-                                }}
-                            >
-                                {answer.answer} - {answer.responses} vote{answer.responses !== 1 ? "s" : ""}
-                            </Button>
-                        ))}
-
-                        <Flex vertical gap={10} style={{ marginTop: "20px" }}>
-                            <Flex align="center" justify="space-between">
-                                Allow Vote Changes
-                                <Switch disabled defaultChecked={classData?.poll.allowVoteChanges}/>
-                            </Flex>
-
-                            <Flex align="center" justify="space-between">
-                                Allow Text Responses
-                                <Switch disabled defaultChecked={classData?.poll.allowTextResponses}/>
-                            </Flex>
-
-                            <Flex align="center" justify="space-between">
-                                Blind Poll
-                                <Switch disabled defaultChecked={classData?.poll.blind}/>
-                            </Flex>
-
-                            <Flex align="center" justify="space-between">
-                                Multiple Answer Poll
-                                <Switch disabled defaultChecked={classData?.poll.allowMultipleResponses} />
-                            </Flex>
-                        </Flex>
-                    </Modal>
+                        onCancel={() => setShowPollDetails(false)}
+                        prompt={classData?.poll?.prompt || ""}
+                        answers={classData?.poll?.responses || []}
+                        allowVoteChanges={classData?.poll?.allowVoteChanges || false}
+                        allowTextResponses={classData?.poll?.allowTextResponses || false}
+                        blind={classData?.poll?.blind || false}
+                        allowMultipleResponses={classData?.poll?.allowMultipleResponses || false}
+                        readOnly
+                    />
 
 					{/* 2x2 grid of buttons (Ant Design Row/Col) */}
 					<div style={{ width: isMobileDevice ? '60px' : '230px', marginTop: 8 }}>

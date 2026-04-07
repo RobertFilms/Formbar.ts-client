@@ -54,10 +54,20 @@ export default function StudentObject({
 								height: "auto",
 								width: "100%",
 								opacity: statusText === "Offline" ? 0.5 : 1,
+								fontSize: "clamp(12px, 1.5vw, 16px)",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								display: "block",
+								whiteSpace: "nowrap"
 							}}
 							onClick={() => setOpenModalId(student.id)}
 						>
-							<Text strong>
+							<Text strong style={{
+								fontSize: "clamp(12px, 1.5vw, 16px)",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								display: "block",
+								whiteSpace: "nowrap"}}>
 								{student.displayName}
 								{student.pollRes.buttonRes !== ""
 									? (<> <span>-</span> <span style={{color: classData?.poll.responses.find((r: any) => r.answer === student.pollRes.buttonRes)?.color}}>{student.pollRes.buttonRes}</span></>)
@@ -71,7 +81,12 @@ export default function StudentObject({
 						style={{ padding: "5px", height: 'auto', width: "100%" }}
 						onClick={() => setOpenModalId(student.id)}
 					>
-						<Text strong>
+						<Text strong style={{
+								fontSize: "clamp(12px, 1.5vw, 16px)",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								display: "block",
+								whiteSpace: "nowrap"}}>
 							{student.displayName}
 							<span>
 								{student.pollRes.buttonRes !== ""

@@ -1,8 +1,8 @@
-import { Button, Col, Divider, Flex, Input, Modal, Pagination, Row, Spin, Switch, Typography } from "antd";
+import { Button, Col, Divider, Flex, Pagination, Row, Spin, Typography } from "antd";
 const { Text, Title } = Typography;
-import { textColorForBackground } from "../../GlobalFunctions";
 import { socket } from "../../socket";
-import { isMobile, useClassData, useMobileDetect } from "../../main";
+import { useClassData, useMobileDetect } from "../../main";
+import PollModal from "../PollModal";
 
 const defaultPolls = [
 	{
@@ -202,84 +202,26 @@ export default function PollsMenu({
                                 >
                                     <Text strong>{poll.prompt}</Text>
                                 </Button>
-                                <Modal
-                                    centered
-                                    title={
-                                        <Input value={pollPrompt} placeholder="Prompt" onChange={(e) => setPollPrompt(e.target.value)} style={{width:'calc(100% - 35px)'}}/>
-                                    }
+                                <PollModal
                                     open={openModalId === poll.id}
-                                    onCancel={() => {
-                                        setOpenModalId(null);
+                                    onCancel={() => setOpenModalId(null)}
+                                    prompt={pollPrompt}
+                                    onPromptChange={setPollPrompt}
+                                    answers={pollAnswers}
+                                    onAnswersChange={setPollAnswers}
+                                    allowVoteChanges={allowVoteChanges}
+                                    onAllowVoteChangesChange={setAllowVoteChanges}
+                                    allowTextResponses={allowTextResponses}
+                                    onAllowTextResponsesChange={setAllowTextResponses}
+                                    blind={blind}
+                                    onBlindChange={setBlind}
+                                    allowMultipleResponses={allowMultipleResponses}
+                                    onAllowMultipleResponsesChange={setAllowMultipleResponses}
+                                    footerButton={{
+                                        label: "Start Poll",
+                                        onClick: () => startPoll(poll.id),
                                     }}
-                                    destroyOnHidden
-                                    footer={null}
-                                >
-                                    {pollAnswers.map((answer, index) => (
-                                        <Button
-                                            key={index}
-                                            style={{
-                                                backgroundColor: answer.color,
-                                                color: textColorForBackground(
-                                                    answer.color,
-                                                ),
-                                                marginTop: "5px",
-                                                width: "100%",
-                                            }}
-                                        >
-                                            <Input value={answer.answer} 
-                                            variant='borderless' placeholder="Answer" onChange={(e) => {
-                                                setPollAnswers(pollAnswers.map((a, i) => 
-                                                    i === index ? {...a, answer: e.target.value} : a
-                                                ));
-                                            }} 
-                                            style={{
-                                                color: textColorForBackground(answer.color),
-                                            }}
-                                            />
-                                        </Button>
-                                    ))}
-
-                                    <Flex vertical gap={10} style={{ marginTop: "20px" }}>
-                                        <Flex align="center" justify="space-between">
-                                            Allow Vote Changes
-                                            <Switch defaultChecked={poll.allowVoteChanges} onChange={(checked) => setAllowVoteChanges(checked)} />
-                                        </Flex>
-
-                                        <Flex align="center" justify="space-between">
-                                            Allow Text Responses
-                                            <Switch defaultChecked={poll.allowTextResponses} onChange={(checked) => setAllowTextResponses(checked)} />
-                                        </Flex>
-
-                                        <Flex align="center" justify="space-between">
-                                            Blind Poll
-                                            <Switch defaultChecked={poll.blind} onChange={(checked) => setBlind(checked)} />
-                                        </Flex>
-
-                                        <Flex align="center" justify="space-between">
-                                            Multiple Answer Poll
-                                            <Switch defaultChecked={poll.allowMultipleResponses} onChange={(checked) => setAllowMultipleResponses(checked)} />
-                                        </Flex>
-                                    </Flex>
-
-                                    {/* <Flex vertical gap={10} style={{ marginTop: "20px" }}>
-                                        <Text type="secondary">Last ran: Never</Text>
-                                    </Flex> */}
-
-                                    <div
-                                        style={{
-                                            marginTop: "20px",
-                                            textAlign: "center",
-                                            width: "100%",
-                                        }}
-                                    >
-                                        <Button
-                                            type="primary"
-                                            onClick={() => startPoll(poll.id)}
-                                        >
-                                            Start Poll
-                                        </Button>
-                                    </div>
-                                </Modal>
+                                />
                             </div>
                             {poll.divider && <Divider style={{marginTop: '15px', marginBottom: '5px'}}/>}
                         </>
@@ -317,92 +259,38 @@ export default function PollsMenu({
 										>
 											<Text strong>{poll.prompt}</Text>
 										</Button>
-										<Modal
-											centered
-											title={
-												<Input value={previousPollPrompt} placeholder="Prompt" onChange={(e) => setPreviousPollPrompt(e.target.value)} style={{width:'calc(100% - 35px)'}}/>
-											}
+										<PollModal
 											open={openPreviousPollId === poll.globalPollId}
-											onCancel={() => {
-												setOpenPreviousPollId(null);
+											onCancel={() => setOpenPreviousPollId(null)}
+											prompt={previousPollPrompt}
+											onPromptChange={setPreviousPollPrompt}
+											answers={previousPollAnswers}
+											onAnswersChange={setPreviousPollAnswers}
+											allowVoteChanges={allowVoteChanges}
+											onAllowVoteChangesChange={setAllowVoteChanges}
+											allowTextResponses={allowTextResponses}
+											onAllowTextResponsesChange={setAllowTextResponses}
+											blind={blind}
+											onBlindChange={setBlind}
+											allowMultipleResponses={allowMultipleResponses}
+											onAllowMultipleResponsesChange={setAllowMultipleResponses}
+											footerButton={{
+												label: "Start Poll",
+												onClick: () => {
+													const editedPoll = {
+														...poll,
+														prompt: previousPollPrompt,
+														answers: previousPollAnswers,
+														allowVoteChanges: allowVoteChanges,
+														allowTextResponses: allowTextResponses,
+														blind: blind,
+														allowMultipleResponses: allowMultipleResponses
+													};
+													socket?.emit("startPoll", editedPoll);
+													setOpenPreviousPollId(null);
+												},
 											}}
-											destroyOnHidden
-											footer={null}
-										>
-											{previousPollAnswers.map((answer, index) => (
-												<Button
-													key={index}
-													style={{
-														backgroundColor: answer.color,
-														color: textColorForBackground(
-															answer.color,
-														),
-														marginTop: "5px",
-														width: "100%",
-													}}
-												>
-													<Input value={answer.answer} 
-													variant='borderless' placeholder="Answer" onChange={(e) => {
-														setPreviousPollAnswers(previousPollAnswers.map((a, i) => 
-															i === index ? {...a, answer: e.target.value} : a
-														));
-													}} 
-													style={{
-														color: textColorForBackground(answer.color),
-													}}
-													/>
-												</Button>
-											))}
-
-											<Flex vertical gap={10} style={{ marginTop: "20px" }}>
-												<Flex align="center" justify="space-between">
-													Allow Vote Changes
-													<Switch defaultChecked={poll.allowVoteChanges} onChange={(checked) => setAllowVoteChanges(checked)} />
-												</Flex>
-
-												<Flex align="center" justify="space-between">
-													Allow Text Responses
-													<Switch defaultChecked={poll.allowTextResponses} onChange={(checked) => setAllowTextResponses(checked)} />
-												</Flex>
-
-												<Flex align="center" justify="space-between">
-													Blind Poll
-													<Switch defaultChecked={poll.blind} onChange={(checked) => setBlind(checked)} />
-												</Flex>
-
-												<Flex align="center" justify="space-between">
-													Multiple Answer Poll
-													<Switch defaultChecked={poll.allowMultipleResponses} onChange={(checked) => setAllowMultipleResponses(checked)} />
-												</Flex>
-											</Flex>
-
-											<div
-												style={{
-													marginTop: "20px",
-													textAlign: "center",
-													width: "100%",
-												}}
-											>
-												<Button
-													type="primary"
-													onClick={() => {
-														const editedPoll = {
-															...poll,
-															prompt: previousPollPrompt,
-															answers: previousPollAnswers,
-															allowVoteChanges: allowVoteChanges,
-															allowTextResponses: allowTextResponses,
-															blind: blind,
-															allowMultipleResponses: allowMultipleResponses
-														};
-														socket?.emit("startPoll", editedPoll);
-														setOpenPreviousPollId(null);
-													}}
-												>
-													Start Poll
-												</Button>
-											</div>
-										</Modal>
+										/>
 									</div>
 								</Col>
 							);

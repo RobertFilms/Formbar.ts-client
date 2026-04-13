@@ -21,6 +21,7 @@ import Log from "../../debugLogger";
 import { createClassLink, deleteClass, deleteClassLink, getClassLinks, getClassTags } from "../../api/classApi";
 
 export default function SettingsMenu() {
+	const frontendUrl = import.meta.env.VITE_FORMBAR_CLIENT_URL || "http://localhost:5174";
 	const { classData } = useClassData();
     const isMobile = useMobileDetect();
 
@@ -188,7 +189,7 @@ export default function SettingsMenu() {
                             {isMobile && (
                                 <Flex align="center" justify="center">
                                     <Tooltip title="Tap to enlarge" mouseEnterDelay={0.5}>
-                                        <QRCode value={"https://formbar.ljharnish.org/joinClass?code=" + classData?.key} bordered={false} size={70} style={{cursor:'pointer'}} iconSize={20} type="svg" icon="/img/FormbarLogo-Circle.png" onClick={() => { setIsQRModalOpen(true) }}/>
+                                        <QRCode value={frontendUrl + "/joinClass?code=" + classData?.key} bordered={false} size={70} style={{cursor:'pointer'}} iconSize={20} type="svg" icon="/img/FormbarLogo-Circle.png" onClick={() => { setIsQRModalOpen(true) }}/>
                                     </Tooltip>
                                 </Flex>
                             )}
@@ -251,7 +252,7 @@ export default function SettingsMenu() {
                                 <Flex vertical gap={10} align="center" justify="center" style={{borderLeft: `2px solid ${isDark ? '#fff2' : '#0002'}`,paddingLeft: 20}}>
 
                                     <Tooltip title="Click to enlarge" mouseEnterDelay={0.5}>
-                                        <QRCode value={"https://formbar.ljharnish.org/joinClass?code=" + classData?.key} bordered={false} size={150} style={{cursor:'pointer'}} type="svg" icon="/img/FormbarLogo-Circle.png" onClick={() => { setIsQRModalOpen(true) }}/>
+                                        <QRCode value={frontendUrl + "/joinClass?code=" + classData?.key} bordered={false} size={150} style={{cursor:'pointer'}} type="svg" icon="/img/FormbarLogo-Circle.png" onClick={() => { setIsQRModalOpen(true) }}/>
                                     </Tooltip>
 
                                     <Text strong type="secondary" style={{fontSize:16}}>Scan to join class</Text>
@@ -269,7 +270,7 @@ export default function SettingsMenu() {
                                 setIsQRModalOpen(false)
                             }}
                             >
-                            <QRCode value={"https://formbar.ljharnish.org/joinClass?code=" + classData?.key} bordered={false} style={{
+                            <QRCode value={frontendUrl + "/joinClass?code=" + classData?.key} bordered={false} style={{
                                 width: '100%',
                                 aspectRatio: 1,
                                 height: 'unset'

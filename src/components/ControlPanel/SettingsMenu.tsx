@@ -12,7 +12,6 @@ import {
 	Tooltip,
     notification,
 } from "antd";
-import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { IonIcon } from "@ionic/react";
 import * as IonIcons from "ionicons/icons";
 const { Title, Text } = Typography;
@@ -277,61 +276,6 @@ export default function SettingsMenu() {
                             }} type="svg" icon="/img/FormbarLogo-Circle.png"/>
                             
                         </Modal>
-					</Flex>
-
-					<Divider />
-
-					<Title level={3}>Allow Voting</Title>
-
-					<Flex vertical gap={10}>
-						<Flex align="center" justify="start" gap={10}>
-							<Switch
-								checkedChildren={<CheckOutlined />}
-								unCheckedChildren={<CloseOutlined />}
-								defaultChecked={!classData?.settings.isExcluded.guests}
-                                 style={{cursor:'not-allowed', opacity: 0.5}}
-							/>
-							Guest
-                            {
-                                !isMobile && (
-                                    <Text type="secondary">
-                                        (Can vote without an account)
-                                    </Text>
-                                )
-                            }
-						</Flex>
-						<Flex align="center" justify="start" gap={10}>
-							<Switch
-								checkedChildren={<CheckOutlined />}
-								unCheckedChildren={<CloseOutlined />}
-								defaultChecked={!classData?.settings.isExcluded.mods}
-                                 style={{cursor:'not-allowed', opacity: 0.5}}
-							/>
-							Mods
-                            {
-                                !isMobile && (
-                                    <Text type="secondary">
-                                        (Mods can access student panel and vote)
-                                    </Text>
-                                )
-                            }
-						</Flex>
-						<Flex align="center" justify="start" gap={10}>
-							<Switch
-								checkedChildren={<CheckOutlined />}
-								unCheckedChildren={<CloseOutlined />}
-								defaultChecked={!classData?.settings.isExcluded.teachers}
-                                 style={{cursor:'not-allowed', opacity: 0.5}}
-							/>
-							Teachers
-                            {
-                                !isMobile && (
-                                    <Text type="secondary">
-                                        (Teachers can access student panel and vote)
-                                    </Text>
-                                )
-                            }
-						</Flex>
 					</Flex>
 
 					<Divider />
